@@ -1,12 +1,24 @@
+# Chart Releaser Configuration
+# See: https://github.com/helm/chart-releaser/blob/main/README.md#configuration
+
+# GitHub repository settings
 owner: ${{ github.repository_owner }}
 repo: ${{ github.event.repository.name }}
-path: helm
 git-repo: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}
-git-branch: gh-pages
-charts-repo-url: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases
-index-name: index.yaml
+
+# Chart directory
+path: helm
+
+# GitHub Pages settings
 pages-branch: gh-pages
 pages-index-path: index.yaml
-release-name-template: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+
+# Release settings
+charts-repo-url: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases
+release-name-template: "{{ .Name }}-{{ .Version }}"
+index-name: index.yaml
+
+# Options
 prerelease: false
+packages-with-index: true
 debug: false

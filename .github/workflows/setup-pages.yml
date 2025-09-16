@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pages: write
+  id-token: write
 
 jobs:
   setup-pages:
@@ -19,12 +20,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
       - name: Create gh-pages branch
         run: |
-          git checkout --orphan gh-pages
-          git reset --hard
-          git commit --allow-empty -m "Initial commit for GitHub Pages"
+          # Check if gh-pages branch already exists
+          if git ls-remote --heads origin gh-pages | grep gh-pages > /dev/null; then
+            echo "gh-pages branch already exists"
+            git checkout gh-pages
+            git reset --hard origin/gh-pages
+          else
+            echo "Creating new gh-pages branch"
+            git checkout --orphan gh-pages
+            git reset --hard
+            git commit --allow-empty -m "Initial commit for GitHub Pages"
+          fi
           git push origin gh-pages
 
       - name: Setup Pages
