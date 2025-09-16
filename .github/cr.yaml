@@ -13,11 +13,9 @@ pages-branch: gh-pages
 pages-index-path: index.yaml
 
 # Release settings
-charts-repo-url: https://kenchrcum.github.io/grafana-dashboard-converter
+charts-repo-url: https://github.com/kenchrcum/grafana-dashboard-converter/releases/download
 release-name-template: "{{ .Name }}-{{ .Version }}"
 
 # Options
 prerelease: false
-packages-with-index: true
-make-absolute: true
 debug: true
