@@ -1,13 +1,17 @@
-# Use Python 3.13 slim image
-FROM python:3.13-slim
+# Build stage
+FROM alpine:3.22.1 AS builder
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install Python and build dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
     gcc \
-    && rm -rf /var/lib/apt/lists/*
+    musl-dev \
+    python3-dev \
+    && python3 -m venv /opt/venv
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash appuser
+# Make sure we use venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
@@ -16,7 +20,25 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Production stage
+FROM alpine:3.22.1
+
+# Install Python runtime only
+RUN apk add --no-cache \
+    python3 \
+    && addgroup -g 1001 -S appuser \
+    && adduser -u 1001 -S appuser -G appuser
+
+# Copy virtual environment from builder stage
+COPY --from=builder /opt/venv /opt/venv
+
+# Make sure we use venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory
+WORKDIR /app
 
 # Copy application code
 COPY main.py .
@@ -31,4 +53,4 @@ USER appuser
 EXPOSE 8080
 
 # Command to run
-CMD ["python", "main.py"]
+CMD ["python3", "main.py"]
