@@ -33,8 +33,17 @@ echo -e "${GREEN}✓ All prerequisites met${NC}"
 
 # Build Docker image
 echo -e "${YELLOW}Building Docker image...${NC}"
-docker build -t grafana-dashboard-converter:latest .
-echo -e "${GREEN}✓ Docker image built${NC}"
+DOCKER_REPO="kenchrcum/grafana-dashboard-converter"
+DOCKER_TAG="${DOCKER_TAG:-latest}"
+docker build -t ${DOCKER_REPO}:${DOCKER_TAG} .
+echo -e "${GREEN}✓ Docker image built as ${DOCKER_REPO}:${DOCKER_TAG}${NC}"
+
+# Optional: Push to Docker Hub
+if [ "${PUSH_TO_DOCKER_HUB}" = "true" ]; then
+    echo -e "${YELLOW}Pushing to Docker Hub...${NC}"
+    docker push ${DOCKER_REPO}:${DOCKER_TAG}
+    echo -e "${GREEN}✓ Image pushed to Docker Hub${NC}"
+fi
 
 # Check Kubernetes connection
 echo -e "${YELLOW}Checking Kubernetes connection...${NC}"
@@ -74,3 +83,14 @@ echo ""
 echo -e "${YELLOW}For cluster-wide watching:${NC}"
 echo "helm upgrade --install grafana-dashboard-converter ./helm/grafana-dashboard-converter \\"
 echo "  --set watchAllNamespaces=true"
+echo ""
+echo -e "${YELLOW}Usage examples:${NC}"
+echo ""
+echo -e "${YELLOW}Build with custom tag:${NC}"
+echo "DOCKER_TAG=v1.0.0 ./deploy.sh"
+echo ""
+echo -e "${YELLOW}Build and push to Docker Hub:${NC}"
+echo "PUSH_TO_DOCKER_HUB=true ./deploy.sh"
+echo ""
+echo -e "${YELLOW}Build and push specific version:${NC}"
+echo "DOCKER_TAG=v1.0.0 PUSH_TO_DOCKER_HUB=true ./deploy.sh"
