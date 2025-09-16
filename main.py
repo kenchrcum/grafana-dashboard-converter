@@ -20,8 +20,10 @@ NAMESPACE_ENV = "NAMESPACE"
 WATCH_ALL_NAMESPACES_ENV = "WATCH_ALL_NAMESPACES"
 GRAFANA_INSTANCE_SELECTOR_ENV = "GRAFANA_INSTANCE_SELECTOR"
 GRAFANA_CONVERTED_ANNOTATION_ENV = "GRAFANA_CONVERTED_ANNOTATION"
+GRAFANA_CONVERSION_MODE_ENV = "GRAFANA_CONVERSION_MODE"
 DEFAULT_NAMESPACE = "default"
 DEFAULT_CONVERTED_ANNOTATION = "grafana-dashboard-converter/converted-at"
+DEFAULT_CONVERSION_MODE = "full"  # Options: "full" or "reference"
 
 # Configure logging
 logging.basicConfig(
@@ -92,8 +94,17 @@ def get_converted_annotation():
     logger.info(f"Using converted annotation: {annotation}")
     return annotation
 
-def check_existing_grafana_dashboard(name, namespace, clientset):
-    """Check if GrafanaDashboard already exists and has the converted annotation."""
+def get_conversion_mode():
+    """Get the conversion mode from environment variable."""
+    mode = os.getenv(GRAFANA_CONVERSION_MODE_ENV, DEFAULT_CONVERSION_MODE).lower()
+    if mode not in ["full", "reference"]:
+        logger.warning(f"Invalid conversion mode '{mode}', using default 'full'")
+        mode = "full"
+    logger.info(f"Using conversion mode: {mode}")
+    return mode
+
+def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode="full"):
+    """Check if GrafanaDashboard already exists and determine if it should be updated."""
     try:
         custom_api = client.CustomObjectsApi(clientset)
         annotation_key = get_converted_annotation()
@@ -107,7 +118,12 @@ def check_existing_grafana_dashboard(name, namespace, clientset):
             name=name
         )
 
-        # Check if it has the converted annotation
+        # For reference mode, we always want to update to ensure ConfigMap changes are reflected
+        if conversion_mode == "reference":
+            logger.info(f"GrafanaDashboard {namespace}/{name} exists, will update (reference mode)")
+            return False
+
+        # For full mode, check the annotation to avoid re-processing
         annotations = grafana_dashboard.get('metadata', {}).get('annotations', {})
         if annotation_key in annotations:
             logger.info(f"GrafanaDashboard {namespace}/{name} already converted (annotation: {annotation_key}), skipping")
@@ -126,92 +142,126 @@ def check_existing_grafana_dashboard(name, namespace, clientset):
             return False
 
 def create_grafana_dashboard_crd(configmap, clientset):
-    """Create GrafanaDashboard CRD from ConfigMap."""
+    """Create GrafanaDashboard CRDs from ConfigMap. Handles multiple dashboards per ConfigMap."""
 
-    # Find the dashboard JSON in the ConfigMap data
-    dashboard_json = None
+    # Find all dashboard JSON files in the ConfigMap data
+    dashboard_files = []
     for key, value in configmap.data.items():
         if key == "dashboard.json" or key.endswith(".json"):
-            dashboard_json = value
-            break
+            dashboard_files.append((key, value))
 
-    if not dashboard_json:
+    if not dashboard_files:
         logger.warning(f"No dashboard JSON found in ConfigMap {configmap.metadata.name}")
         return
 
-    try:
-        # Parse the dashboard JSON to extract title
-        dashboard_data = json.loads(dashboard_json)
-        title = dashboard_data.get("dashboard", {}).get("title", configmap.metadata.name)
+    logger.info(f"Found {len(dashboard_files)} dashboard(s) in ConfigMap {configmap.metadata.name}")
 
-        # Create GrafanaDashboard CRD
-        grafana_dashboard_name = configmap.metadata.name.lower().replace("_", "-")
-
-        # Check if dashboard already exists and has been converted
-        if check_existing_grafana_dashboard(grafana_dashboard_name, configmap.metadata.namespace, clientset):
-            return  # Skip processing
-
-        # Get current timestamp for annotation
-        import datetime
-        converted_at = datetime.datetime.utcnow().isoformat() + "Z"
-
-        grafana_dashboard = {
-            "apiVersion": "grafana.integreatly.org/v1beta1",
-            "kind": "GrafanaDashboard",
-            "metadata": {
-                "name": grafana_dashboard_name,
-                "namespace": configmap.metadata.namespace,
-                "labels": {
-                    "app.kubernetes.io/managed-by": "grafana-dashboard-converter",
-                    "grafana-dashboard": "converted"
-                },
-                "annotations": {
-                    get_converted_annotation(): converted_at
-                }
-            },
-            "spec": {
-                "json": dashboard_json,
-                "instanceSelector": get_instance_selector()
-            }
-        }
-
-        # Set folder if specified in labels
-        if configmap.metadata.labels and "grafana_folder" in configmap.metadata.labels:
-            grafana_dashboard["spec"]["folder"] = configmap.metadata.labels["grafana_folder"]
-
-        # Try to create the GrafanaDashboard CRD
+    # Process each dashboard file
+    for dashboard_key, dashboard_json in dashboard_files:
         try:
-            custom_api = client.CustomObjectsApi(clientset)
-            custom_api.create_namespaced_custom_object(
-                group="grafana.integreatly.org",
-                version="v1beta1",
-                namespace=configmap.metadata.namespace,
-                plural="grafanadashboards",
-                body=grafana_dashboard
-            )
-            logger.info(f"Created GrafanaDashboard: {grafana_dashboard_name} with title: {title}")
-        except ApiException as e:
-            if e.status == 409:
-                # Object already exists, try to update it
-                try:
-                    custom_api.patch_namespaced_custom_object(
-                        group="grafana.integreatly.org",
-                        version="v1beta1",
-                        namespace=configmap.metadata.namespace,
-                        plural="grafanadashboards",
-                        name=grafana_dashboard_name,
-                        body=grafana_dashboard
-                    )
-                    logger.info(f"Updated GrafanaDashboard: {grafana_dashboard_name} with title: {title}")
-                except ApiException as patch_e:
-                    logger.error(f"Failed to update GrafanaDashboard {grafana_dashboard_name}: {patch_e}")
-            else:
-                logger.error(f"Failed to create GrafanaDashboard {grafana_dashboard_name}: {e}")
+            # Parse the dashboard JSON to extract title
+            dashboard_data = json.loads(dashboard_json)
+            title = dashboard_data.get("dashboard", {}).get("title", f"{configmap.metadata.name}-{dashboard_key}")
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse dashboard JSON from ConfigMap {configmap.metadata.name}: {e}")
-    except Exception as e:
-        logger.error(f"Error processing ConfigMap {configmap.metadata.name}: {e}")
+            # Get conversion mode
+            conversion_mode = get_conversion_mode()
+
+            # Create unique GrafanaDashboard name based on ConfigMap name and key
+            base_name = configmap.metadata.name.lower().replace("_", "-")
+            if len(dashboard_files) == 1:
+                # If only one dashboard, use the original naming scheme
+                grafana_dashboard_name = base_name
+            else:
+                # If multiple dashboards, include the key in the name
+                key_part = dashboard_key.replace(".json", "").replace("_", "-").lower()
+                grafana_dashboard_name = f"{base_name}-{key_part}"
+
+            # Check if dashboard already exists and has been converted
+            if check_existing_grafana_dashboard(grafana_dashboard_name, configmap.metadata.namespace, clientset, conversion_mode):
+                continue  # Skip this dashboard
+
+            # Get current timestamp for annotation
+            import datetime
+            converted_at = datetime.datetime.utcnow().isoformat() + "Z"
+
+            # Build the GrafanaDashboard spec based on conversion mode
+            grafana_dashboard = {
+                "apiVersion": "grafana.integreatly.org/v1beta1",
+                "kind": "GrafanaDashboard",
+                "metadata": {
+                    "name": grafana_dashboard_name,
+                    "namespace": configmap.metadata.namespace,
+                    "labels": {
+                        "app.kubernetes.io/managed-by": "grafana-dashboard-converter",
+                        "grafana-dashboard": "converted",
+                        "grafana-dashboard-conversion-mode": conversion_mode,
+                        "grafana-dashboard-source-configmap": configmap.metadata.name,
+                        "grafana-dashboard-source-key": dashboard_key
+                    },
+                    "annotations": {
+                        get_converted_annotation(): converted_at
+                    }
+                },
+                "spec": {
+                    "instanceSelector": get_instance_selector()
+                }
+            }
+
+            if conversion_mode == "full":
+                # Full conversion: embed the JSON content
+                grafana_dashboard["spec"]["json"] = dashboard_json
+                logger.info(f"Creating GrafanaDashboard with embedded JSON content for {dashboard_key}")
+            elif conversion_mode == "reference":
+                # Reference mode: use ConfigMap reference
+                grafana_dashboard["spec"]["configMapRef"] = {
+                    "name": configmap.metadata.name,
+                    "key": dashboard_key
+                }
+                # Add resync period for automatic updates
+                grafana_dashboard["spec"]["resyncPeriod"] = "10m"
+                logger.info(f"Creating GrafanaDashboard with ConfigMap reference for {dashboard_key}")
+
+            # Set folder if specified in labels
+            if configmap.metadata.labels and "grafana_folder" in configmap.metadata.labels:
+                grafana_dashboard["spec"]["folder"] = configmap.metadata.labels["grafana_folder"]
+
+            # Set allowCrossNamespaceImport for reference mode
+            if conversion_mode == "reference" and configmap.metadata.namespace != "default":
+                grafana_dashboard["spec"]["allowCrossNamespaceImport"] = True
+
+            # Try to create the GrafanaDashboard CRD
+            try:
+                custom_api = client.CustomObjectsApi(clientset)
+                custom_api.create_namespaced_custom_object(
+                    group="grafana.integreatly.org",
+                    version="v1beta1",
+                    namespace=configmap.metadata.namespace,
+                    plural="grafanadashboards",
+                    body=grafana_dashboard
+                )
+                logger.info(f"Created GrafanaDashboard: {grafana_dashboard_name} with title: '{title}' from {dashboard_key} (mode: {conversion_mode})")
+            except ApiException as e:
+                if e.status == 409:
+                    # Object already exists, try to update it
+                    try:
+                        custom_api.patch_namespaced_custom_object(
+                            group="grafana.integreatly.org",
+                            version="v1beta1",
+                            namespace=configmap.metadata.namespace,
+                            plural="grafanadashboards",
+                            name=grafana_dashboard_name,
+                            body=grafana_dashboard
+                        )
+                        logger.info(f"Updated GrafanaDashboard: {grafana_dashboard_name} with title: '{title}' from {dashboard_key} (mode: {conversion_mode})")
+                    except ApiException as patch_e:
+                        logger.error(f"Failed to update GrafanaDashboard {grafana_dashboard_name}: {patch_e}")
+                else:
+                    logger.error(f"Failed to create GrafanaDashboard {grafana_dashboard_name}: {e}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse dashboard JSON from ConfigMap {configmap.metadata.name}, key {dashboard_key}: {e}")
+        except Exception as e:
+            logger.error(f"Error processing dashboard from ConfigMap {configmap.metadata.name}, key {dashboard_key}: {e}")
 
 def watch_configmaps():
     """Watch ConfigMaps for changes."""

@@ -101,10 +101,67 @@ metadata:
     grafana-dashboard-converter/converted-at: "2025-09-16T10:23:45.123456Z"
 ```
 
-### 6. Create Legacy ConfigMaps
+### 6. Conversion Mode Selection
 
-Create ConfigMaps with your existing Grafana dashboards:
+The converter supports two conversion modes that determine how GrafanaDashboard resources are created:
 
+#### Full Conversion Mode (Default)
+Creates GrafanaDashboard resources with embedded JSON content:
+```yaml
+spec:
+  json: |
+    {
+      "dashboard": {
+        "title": "My Dashboard",
+        ...
+      }
+    }
+```
+
+**Benefits:**
+- Self-contained: Dashboard content is embedded in the CRD
+- No external dependencies: Works even if ConfigMap is deleted
+- Annotation-based optimization: Prevents re-processing
+
+**Use when:**
+- You want immutable dashboard snapshots
+- ConfigMaps may be deleted after conversion
+- You prefer self-contained resources
+
+#### Reference Mode
+Creates GrafanaDashboard resources that reference the original ConfigMap:
+```yaml
+spec:
+  configMapRef:
+    name: my-legacy-dashboard
+    key: dashboard.json
+  resyncPeriod: 10m
+  allowCrossNamespaceImport: true
+```
+
+**Benefits:**
+- Automatic sync: Dashboard updates when ConfigMap changes
+- Reduced duplication: Content stays in ConfigMap
+- Real-time updates: Changes propagate automatically
+
+**Use when:**
+- ConfigMaps are actively maintained and updated
+- You want dashboards to automatically reflect ConfigMap changes
+- Storage efficiency is important
+
+**Configure Reference Mode:**
+```yaml
+grafana:
+  conversionMode: "reference"
+```
+
+**Note:** In reference mode, the converter will always update existing GrafanaDashboard resources to ensure they reflect the latest ConfigMap content.
+
+### 7. Create Legacy ConfigMaps
+
+Create ConfigMaps with your existing Grafana dashboards. The converter supports both single and multiple dashboards per ConfigMap:
+
+#### Single Dashboard per ConfigMap
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -123,12 +180,100 @@ data:
     }
 ```
 
-### 6. Verify Conversion
+#### Multiple Dashboards per ConfigMap
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-dashboards
+  labels:
+    grafana_dashboard: "1"
+    grafana_folder: "Loki"
+data:
+  loki-chunks.json: |
+    {
+      "dashboard": {
+        "title": "Loki Chunks",
+        ...
+      }
+    }
+  loki-logs.json: |
+    {
+      "dashboard": {
+        "title": "Loki Logs",
+        ...
+      }
+    }
+  loki-operational.json: |
+    {
+      "dashboard": {
+        "title": "Loki Operational",
+        ...
+      }
+    }
+```
 
-The converter will automatically create a corresponding GrafanaDashboard CRD:
+**Note:** When a ConfigMap contains multiple dashboards, each will be converted to a separate GrafanaDashboard CRD with names like `configmap-name-dashboard-key`.
+
+### 8. Verify Conversion
+
+The converter will automatically create corresponding GrafanaDashboard CRDs:
 
 ```bash
 kubectl get grafanadashboards
+```
+
+**Single Dashboard Example (Full Mode):**
+```yaml
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: my-legacy-dashboard
+  labels:
+    grafana-dashboard-conversion-mode: full
+spec:
+  json: |
+    {
+      "dashboard": {
+        "title": "My Dashboard",
+        ...
+      }
+    }
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+```
+
+**Multiple Dashboards Example:**
+For a ConfigMap with multiple dashboards, you'll see multiple GrafanaDashboard resources:
+
+```bash
+kubectl get grafanadashboards
+NAME                          AGE
+loki-dashboards-loki-chunks   5m
+loki-dashboards-loki-logs     5m
+loki-dashboards-loki-operational 5m
+```
+
+Each dashboard will have labels indicating its source:
+```yaml
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: loki-dashboards-loki-chunks
+  labels:
+    grafana-dashboard-conversion-mode: reference
+    grafana-dashboard-source-configmap: loki-dashboards
+    grafana-dashboard-source-key: loki-chunks.json
+spec:
+  configMapRef:
+    name: loki-dashboards
+    key: loki-chunks.json
+  resyncPeriod: 10m
+  allowCrossNamespaceImport: true
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
 ```
 
 ## Project Structure
@@ -179,6 +324,7 @@ kubectl get grafanadashboards
 | `watchAllNamespaces` | Watch ConfigMaps across all namespaces | `false` |
 | `grafana.instanceSelector.matchLabels` | Labels used to match Grafana instances for dashboard deployment | `{"dashboards": "grafana"}` |
 | `grafana.convertedAnnotation` | Annotation key to mark converted dashboards (prevents re-processing) | `grafana-dashboard-converter/converted-at` |
+| `grafana.conversionMode` | Conversion mode: "full" (embed JSON) or "reference" (use ConfigMap reference) | `full` |
 | `resources.limits.cpu` | CPU limit | `100m` |
 | `resources.limits.memory` | Memory limit | `128Mi` |
 | `resources.requests.cpu` | CPU request | `50m` |
@@ -200,6 +346,7 @@ kubectl get grafanadashboards
 - `WATCH_ALL_NAMESPACES`: Enable watching across all namespaces (default: false)
 - `GRAFANA_INSTANCE_SELECTOR`: JSON string defining labels to match Grafana instances (default: `{"matchLabels":{"dashboards":"grafana"}}`)
 - `GRAFANA_CONVERTED_ANNOTATION`: Annotation key to mark converted dashboards (default: `grafana-dashboard-converter/converted-at`)
+- `GRAFANA_CONVERSION_MODE`: Conversion mode ("full" or "reference") (default: "full")
 
 ## Development
 

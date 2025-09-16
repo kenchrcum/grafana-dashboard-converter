@@ -88,3 +88,5 @@ grafana:
       dashboards: "grafana"
   # Annotation to mark converted dashboards (prevents re-processing)
   convertedAnnotation: "grafana-dashboard-converter/converted-at"
+  # Conversion mode: "full" (embed JSON) or "reference" (use ConfigMap reference)
+  conversionMode: "full"
