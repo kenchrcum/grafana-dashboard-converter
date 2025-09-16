@@ -17,4 +17,7 @@ rules:
 - apiGroups: ["grafana.integreatly.org"]
   resources: ["grafanadashboards"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["grafana.integreatly.org"]
+  resources: ["grafanadashboards/status"]
+  verbs: ["get"]
 {{- end }}

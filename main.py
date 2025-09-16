@@ -19,7 +19,9 @@ GRAFANA_DASHBOARD_LABEL = "grafana_dashboard=1"
 NAMESPACE_ENV = "NAMESPACE"
 WATCH_ALL_NAMESPACES_ENV = "WATCH_ALL_NAMESPACES"
 GRAFANA_INSTANCE_SELECTOR_ENV = "GRAFANA_INSTANCE_SELECTOR"
+GRAFANA_CONVERTED_ANNOTATION_ENV = "GRAFANA_CONVERTED_ANNOTATION"
 DEFAULT_NAMESPACE = "default"
+DEFAULT_CONVERTED_ANNOTATION = "grafana-dashboard-converter/converted-at"
 
 # Configure logging
 logging.basicConfig(
@@ -84,6 +86,45 @@ def get_instance_selector():
 
     return DEFAULT_INSTANCE_SELECTOR
 
+def get_converted_annotation():
+    """Get the converted annotation key from environment variable."""
+    annotation = os.getenv(GRAFANA_CONVERTED_ANNOTATION_ENV, DEFAULT_CONVERTED_ANNOTATION)
+    logger.info(f"Using converted annotation: {annotation}")
+    return annotation
+
+def check_existing_grafana_dashboard(name, namespace, clientset):
+    """Check if GrafanaDashboard already exists and has the converted annotation."""
+    try:
+        custom_api = client.CustomObjectsApi(clientset)
+        annotation_key = get_converted_annotation()
+
+        # Try to get the existing GrafanaDashboard
+        grafana_dashboard = custom_api.get_namespaced_custom_object(
+            group="grafana.integreatly.org",
+            version="v1beta1",
+            namespace=namespace,
+            plural="grafanadashboards",
+            name=name
+        )
+
+        # Check if it has the converted annotation
+        annotations = grafana_dashboard.get('metadata', {}).get('annotations', {})
+        if annotation_key in annotations:
+            logger.info(f"GrafanaDashboard {namespace}/{name} already converted (annotation: {annotation_key}), skipping")
+            return True
+
+        logger.info(f"GrafanaDashboard {namespace}/{name} exists but missing annotation, will update")
+        return False
+
+    except ApiException as e:
+        if e.status == 404:
+            # GrafanaDashboard doesn't exist
+            logger.info(f"GrafanaDashboard {namespace}/{name} does not exist, will create")
+            return False
+        else:
+            logger.error(f"Error checking GrafanaDashboard {namespace}/{name}: {e}")
+            return False
+
 def create_grafana_dashboard_crd(configmap, clientset):
     """Create GrafanaDashboard CRD from ConfigMap."""
 
@@ -106,6 +147,14 @@ def create_grafana_dashboard_crd(configmap, clientset):
         # Create GrafanaDashboard CRD
         grafana_dashboard_name = configmap.metadata.name.lower().replace("_", "-")
 
+        # Check if dashboard already exists and has been converted
+        if check_existing_grafana_dashboard(grafana_dashboard_name, configmap.metadata.namespace, clientset):
+            return  # Skip processing
+
+        # Get current timestamp for annotation
+        import datetime
+        converted_at = datetime.datetime.utcnow().isoformat() + "Z"
+
         grafana_dashboard = {
             "apiVersion": "grafana.integreatly.org/v1beta1",
             "kind": "GrafanaDashboard",
@@ -115,6 +164,9 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 "labels": {
                     "app.kubernetes.io/managed-by": "grafana-dashboard-converter",
                     "grafana-dashboard": "converted"
+                },
+                "annotations": {
+                    get_converted_annotation(): converted_at
                 }
             },
             "spec": {

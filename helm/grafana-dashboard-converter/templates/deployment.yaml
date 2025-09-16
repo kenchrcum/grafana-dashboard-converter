@@ -54,6 +54,8 @@ spec:
               value: {{ .Values.watchAllNamespaces | quote }}
             - name: GRAFANA_INSTANCE_SELECTOR
               value: {{ .Values.grafana.instanceSelector.matchLabels | toJson | quote }}
+            - name: GRAFANA_CONVERTED_ANNOTATION
+              value: {{ .Values.grafana.convertedAnnotation | quote }}
           {{- if .Values.healthCheck.enabled }}
           ports:
             - name: http

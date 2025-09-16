@@ -86,3 +86,5 @@ grafana:
   instanceSelector:
     matchLabels:
       dashboards: "grafana"
+  # Annotation to mark converted dashboards (prevents re-processing)
+  convertedAnnotation: "grafana-dashboard-converter/converted-at"

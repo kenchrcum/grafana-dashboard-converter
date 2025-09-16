@@ -79,7 +79,29 @@ grafana:
       team: platform
 ```
 
-### 5. Create Legacy ConfigMaps
+### 5. Dashboard Conversion Optimization
+
+The converter automatically adds an annotation to created GrafanaDashboard resources to prevent re-processing on subsequent runs. By default, it uses the annotation key `grafana-dashboard-converter/converted-at` with a timestamp value.
+
+**Benefits:**
+- **Performance**: Avoids unnecessary API calls and processing
+- **Idempotency**: Multiple runs won't create duplicate resources
+- **Tracking**: Easy to identify when dashboards were converted
+
+**Custom annotation key:**
+```yaml
+grafana:
+  convertedAnnotation: "my-org/dashboard-converted"
+```
+
+**Annotation format:**
+```yaml
+metadata:
+  annotations:
+    grafana-dashboard-converter/converted-at: "2025-09-16T10:23:45.123456Z"
+```
+
+### 6. Create Legacy ConfigMaps
 
 Create ConfigMaps with your existing Grafana dashboards:
 
@@ -156,6 +178,7 @@ kubectl get grafanadashboards
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
 | `watchAllNamespaces` | Watch ConfigMaps across all namespaces | `false` |
 | `grafana.instanceSelector.matchLabels` | Labels used to match Grafana instances for dashboard deployment | `{"dashboards": "grafana"}` |
+| `grafana.convertedAnnotation` | Annotation key to mark converted dashboards (prevents re-processing) | `grafana-dashboard-converter/converted-at` |
 | `resources.limits.cpu` | CPU limit | `100m` |
 | `resources.limits.memory` | Memory limit | `128Mi` |
 | `resources.requests.cpu` | CPU request | `50m` |
@@ -176,6 +199,7 @@ kubectl get grafanadashboards
 - `NAMESPACE`: Namespace to watch for ConfigMaps (defaults to pod's namespace)
 - `WATCH_ALL_NAMESPACES`: Enable watching across all namespaces (default: false)
 - `GRAFANA_INSTANCE_SELECTOR`: JSON string defining labels to match Grafana instances (default: `{"matchLabels":{"dashboards":"grafana"}}`)
+- `GRAFANA_CONVERTED_ANNOTATION`: Annotation key to mark converted dashboards (default: `grafana-dashboard-converter/converted-at`)
 
 ## Development
 
