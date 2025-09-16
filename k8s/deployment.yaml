@@ -20,7 +20,7 @@ spec:
       serviceAccountName: grafana-dashboard-converter
       containers:
       - name: converter
-        image: grafana-dashboard-converter:latest
+        image: kenchrcum/grafana-dashboard-converter:latest
         imagePullPolicy: Always
         env:
         - name: NAMESPACE

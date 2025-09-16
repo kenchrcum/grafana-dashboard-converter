@@ -25,12 +25,11 @@ This project addresses the migration from the old sidecar-based Grafana dashboar
 ### 1. Build and Push the Docker Image
 
 ```bash
-# Build the image
-docker build -t grafana-dashboard-converter:latest .
+# Build the image for Docker Hub
+docker build -t kenchrcum/grafana-dashboard-converter:latest .
 
-# Push to your registry
-docker tag grafana-dashboard-converter:latest your-registry/grafana-dashboard-converter:latest
-docker push your-registry/grafana-dashboard-converter:latest
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:latest
 ```
 
 ### 2. Deploy with Helm
@@ -120,6 +119,7 @@ kubectl get grafanadashboards
 ├── examples/                           # Sample ConfigMaps
 │   ├── sample-dashboard-configmap.yaml
 │   └── cluster-wide-dashboard-configmap.yaml
+├── build.sh                           # Build script for Docker images
 └── deploy.sh                         # Deployment script
 ```
 
@@ -129,7 +129,7 @@ kubectl get grafanadashboards
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Docker image repository | `grafana-dashboard-converter` |
+| `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
 | `image.tag` | Docker image tag | `latest` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
@@ -176,26 +176,21 @@ NAMESPACE=my-namespace python main.py
 ### Building for Production
 
 ```bash
-# Build Docker image
-docker build -t grafana-dashboard-converter:v1.0.0 .
+# Build Docker image for Docker Hub
+docker build -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
 
 # Or build with specific Python version
-docker build --build-arg PYTHON_VERSION=3.11 -t grafana-dashboard-converter:v1.0.0 .
+docker build --build-arg PYTHON_VERSION=3.11 -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
+
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:v1.0.0
 ```
 
 ## CI/CD
 
-This project includes GitHub Actions workflows for automated building, testing, and deployment.
+This project includes GitHub Actions workflows for automated testing and deployment. Docker images are built locally and pushed to Docker Hub.
 
 ### Workflows
-
-#### Docker Build (`docker.yml`)
-Automatically builds and pushes Docker images to GitHub Container Registry:
-
-- **Triggers**: Push to `main`/`master`, pull requests, and version tags
-- **Platforms**: Multi-arch support (AMD64, ARM64)
-- **Registry**: `ghcr.io`
-- **Tags**: Branch names, semantic versions, SHA hashes, and `latest`
 
 #### Helm Chart Release (`helm.yml`)
 Manages Helm chart releases and GitHub Pages hosting:
@@ -218,22 +213,40 @@ One-time setup for Helm repository hosting:
 - **Trigger**: Manual workflow dispatch
 - **Creates**: `gh-pages` branch with initial repository structure
 
+### Docker Image Management
+
+Docker images are built locally and pushed to Docker Hub (`kenchrcum/grafana-dashboard-converter`).
+
+#### Building and Pushing Images
+
+```bash
+# Build locally
+docker build -t kenchrcum/grafana-dashboard-converter:latest .
+
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:latest
+
+# Or use the provided build script (recommended)
+./build.sh                                    # Build only
+TAG=v1.0.0 ./build.sh                         # Build with specific tag
+PUSH=true ./build.sh                          # Build and push
+TAG=v1.0.0 PUSH=true ./build.sh               # Build specific version and push
+
+# Alternative: Use deploy script
+./deploy.sh                                    # Builds locally
+PUSH_TO_DOCKER_HUB=true ./deploy.sh           # Builds and pushes to Docker Hub
+```
+
 ### Setup Instructions
 
-1. **Enable GitHub Container Registry**:
-   ```bash
-   # The docker.yml workflow will automatically create and push to GHCR
-   # No additional setup required - just ensure GITHUB_TOKEN has package permissions
-   ```
-
-2. **Setup GitHub Pages for Helm Repository**:
+1. **Setup GitHub Pages for Helm Repository**:
    ```bash
    # Go to repository Settings > Pages
    # Set source to "GitHub Actions"
    # Then run the setup-pages workflow manually
    ```
 
-3. **Repository Settings**:
+2. **Repository Settings**:
    - Go to **Settings > Actions > General**
    - Set **Workflow permissions** to "Read and write permissions"
    - Enable **Allow GitHub Actions to create and approve pull requests** (optional)
@@ -242,17 +255,17 @@ One-time setup for Helm repository hosting:
 
 #### Docker Images
 ```bash
-# Pull from GitHub Container Registry
-docker pull ghcr.io/your-username/grafana-dashboard-converter:latest
+# Pull from Docker Hub
+docker pull kenchrcum/grafana-dashboard-converter:latest
 
 # Or use in Kubernetes
-image: ghcr.io/your-username/grafana-dashboard-converter:v1.0.0
+image: kenchrcum/grafana-dashboard-converter:latest
 ```
 
 #### Helm Charts
 ```bash
 # Add the GitHub Pages repository
-helm repo add grafana-dashboard-converter https://your-username.github.io/grafana-dashboard-converter/
+helm repo add grafana-dashboard-converter https://kenneth.github.io/grafana-dashboard-converter/
 
 # Install the chart
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter

@@ -22,7 +22,7 @@ The following table lists the configurable parameters of the Grafana Dashboard C
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Docker image repository | `grafana-dashboard-converter` |
+| `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
 | `image.tag` | Docker image tag | `latest` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
@@ -87,11 +87,10 @@ data:
 
 ```bash
 # Build the Docker image
-docker build -t grafana-dashboard-converter:latest .
+docker build -t kenchrcum/grafana-dashboard-converter:latest .
 
-# Push to your registry
-docker tag grafana-dashboard-converter:latest your-registry/grafana-dashboard-converter:latest
-docker push your-registry/grafana-dashboard-converter:latest
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:latest
 ```
 
-Then update the `values.yaml` with your image repository.
+The image is automatically configured in the `values.yaml` file to use the Docker Hub repository.
