@@ -94,3 +94,4 @@ docker push kenchrcum/grafana-dashboard-converter:latest
 ```
 
 The image is automatically configured in the `values.yaml` file to use the Docker Hub repository.
+# Trigger release Di 16. Sep 11:40:15 CEST 2025

@@ -21,4 +21,4 @@ index-name: index.yaml
 # Options
 prerelease: false
 packages-with-index: true
-debug: false
+debug: true
