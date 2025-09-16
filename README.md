@@ -59,7 +59,27 @@ helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
   --set watchAllNamespaces=true
 ```
 
-### 4. Create Legacy ConfigMaps
+### 4. Configure Grafana Instance Selector (Optional)
+
+You can customize which Grafana instances your dashboards are deployed to by configuring the instance selector. The default configuration matches Grafana instances with the label `dashboards: grafana`.
+
+**Using Helm:**
+```bash
+helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+  --set grafana.instanceSelector.matchLabels.app=grafana \
+  --set grafana.instanceSelector.matchLabels.team=platform
+```
+
+**Using values.yaml:**
+```yaml
+grafana:
+  instanceSelector:
+    matchLabels:
+      app: grafana
+      team: platform
+```
+
+### 5. Create Legacy ConfigMaps
 
 Create ConfigMaps with your existing Grafana dashboards:
 
@@ -81,7 +101,7 @@ data:
     }
 ```
 
-### 5. Verify Conversion
+### 6. Verify Conversion
 
 The converter will automatically create a corresponding GrafanaDashboard CRD:
 
@@ -135,6 +155,7 @@ kubectl get grafanadashboards
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
 | `watchAllNamespaces` | Watch ConfigMaps across all namespaces | `false` |
+| `grafana.instanceSelector.matchLabels` | Labels used to match Grafana instances for dashboard deployment | `{"dashboards": "grafana"}` |
 | `resources.limits.cpu` | CPU limit | `100m` |
 | `resources.limits.memory` | Memory limit | `128Mi` |
 | `resources.requests.cpu` | CPU request | `50m` |
@@ -154,6 +175,7 @@ kubectl get grafanadashboards
 
 - `NAMESPACE`: Namespace to watch for ConfigMaps (defaults to pod's namespace)
 - `WATCH_ALL_NAMESPACES`: Enable watching across all namespaces (default: false)
+- `GRAFANA_INSTANCE_SELECTOR`: JSON string defining labels to match Grafana instances (default: `{"matchLabels":{"dashboards":"grafana"}}`)
 
 ## Development
 

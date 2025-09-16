@@ -14,6 +14,13 @@ from kubernetes.client.rest import ApiException
 from flask import Flask, jsonify
 import requests
 
+# Constants
+GRAFANA_DASHBOARD_LABEL = "grafana_dashboard=1"
+NAMESPACE_ENV = "NAMESPACE"
+WATCH_ALL_NAMESPACES_ENV = "WATCH_ALL_NAMESPACES"
+GRAFANA_INSTANCE_SELECTOR_ENV = "GRAFANA_INSTANCE_SELECTOR"
+DEFAULT_NAMESPACE = "default"
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -21,11 +28,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Constants
-GRAFANA_DASHBOARD_LABEL = "grafana_dashboard=1"
-NAMESPACE_ENV = "NAMESPACE"
-WATCH_ALL_NAMESPACES_ENV = "WATCH_ALL_NAMESPACES"
-DEFAULT_NAMESPACE = "default"
+# Default instance selector if not configured
+DEFAULT_INSTANCE_SELECTOR = {
+    "matchLabels": {
+        "dashboards": "grafana"
+    }
+}
 
 # Global variables for health checks
 healthy = True
@@ -61,6 +69,21 @@ def load_kubernetes_config():
         config.load_kube_config()
         logger.info("Loaded kubeconfig from file")
 
+def get_instance_selector():
+    """Get the instance selector configuration from environment variable."""
+    selector_json = os.getenv(GRAFANA_INSTANCE_SELECTOR_ENV)
+    if selector_json:
+        try:
+            selector = json.loads(selector_json)
+            logger.info(f"Using configured instance selector: {selector}")
+            return selector
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse GRAFANA_INSTANCE_SELECTOR: {e}, using default")
+    else:
+        logger.info("GRAFANA_INSTANCE_SELECTOR not set, using default")
+
+    return DEFAULT_INSTANCE_SELECTOR
+
 def create_grafana_dashboard_crd(configmap, clientset):
     """Create GrafanaDashboard CRD from ConfigMap."""
 
@@ -84,7 +107,7 @@ def create_grafana_dashboard_crd(configmap, clientset):
         grafana_dashboard_name = configmap.metadata.name.lower().replace("_", "-")
 
         grafana_dashboard = {
-            "apiVersion": "integreatly.org/v1alpha1",
+            "apiVersion": "grafana.integreatly.org/v1beta1",
             "kind": "GrafanaDashboard",
             "metadata": {
                 "name": grafana_dashboard_name,
@@ -95,7 +118,8 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 }
             },
             "spec": {
-                "json": dashboard_json
+                "json": dashboard_json,
+                "instanceSelector": get_instance_selector()
             }
         }
 
@@ -107,8 +131,8 @@ def create_grafana_dashboard_crd(configmap, clientset):
         try:
             custom_api = client.CustomObjectsApi(clientset)
             custom_api.create_namespaced_custom_object(
-                group="integreatly.org",
-                version="v1alpha1",
+                group="grafana.integreatly.org",
+                version="v1beta1",
                 namespace=configmap.metadata.namespace,
                 plural="grafanadashboards",
                 body=grafana_dashboard
@@ -119,8 +143,8 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 # Object already exists, try to update it
                 try:
                     custom_api.patch_namespaced_custom_object(
-                        group="integreatly.org",
-                        version="v1alpha1",
+                        group="grafana.integreatly.org",
+                        version="v1beta1",
                         namespace=configmap.metadata.namespace,
                         plural="grafanadashboards",
                         name=grafana_dashboard_name,

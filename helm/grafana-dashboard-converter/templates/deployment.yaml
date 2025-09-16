@@ -52,6 +52,8 @@ spec:
               value: {{ .Values.watchNamespace | default .Release.Namespace | quote }}
             - name: WATCH_ALL_NAMESPACES
               value: {{ .Values.watchAllNamespaces | quote }}
+            - name: GRAFANA_INSTANCE_SELECTOR
+              value: {{ .Values.grafana.instanceSelector.matchLabels | toJson | quote }}
           {{- if .Values.healthCheck.enabled }}
           ports:
             - name: http

@@ -79,3 +79,10 @@ podLabels: {}
 
 # Pod annotations
 podAnnotations: {}
+
+# Grafana configuration
+grafana:
+  # Labels used to match Grafana instances for dashboard deployment
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
