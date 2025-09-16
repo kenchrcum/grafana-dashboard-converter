@@ -104,7 +104,12 @@ def get_conversion_mode():
     return mode
 
 def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode="full"):
-    """Check if GrafanaDashboard already exists and determine if it should be updated."""
+    """Check if GrafanaDashboard already exists and determine if it should be updated.
+    Returns: (should_skip, mode_changed, existing_dashboard)
+    - should_skip: True if dashboard exists and should not be processed
+    - mode_changed: True if existing dashboard has different conversion mode
+    - existing_dashboard: The existing dashboard object if it exists, None otherwise
+    """
     try:
         custom_api = client.CustomObjectsApi(clientset)
         annotation_key = get_converted_annotation()
@@ -118,28 +123,37 @@ def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode
             name=name
         )
 
+        # Check the current conversion mode of the existing dashboard
+        labels = grafana_dashboard.get('metadata', {}).get('labels', {})
+        existing_mode = labels.get('grafana-dashboard-conversion-mode', 'full')  # Default to 'full' for backward compatibility
+
+        # If the conversion mode has changed, we need to recreate
+        if existing_mode != conversion_mode:
+            logger.info(f"GrafanaDashboard {namespace}/{name} exists with mode '{existing_mode}' but desired mode is '{conversion_mode}', will recreate")
+            return False, True, grafana_dashboard
+
         # For reference mode, we always want to update to ensure ConfigMap changes are reflected
         if conversion_mode == "reference":
             logger.info(f"GrafanaDashboard {namespace}/{name} exists, will update (reference mode)")
-            return False
+            return False, False, grafana_dashboard
 
         # For full mode, check the annotation to avoid re-processing
         annotations = grafana_dashboard.get('metadata', {}).get('annotations', {})
         if annotation_key in annotations:
             logger.info(f"GrafanaDashboard {namespace}/{name} already converted (annotation: {annotation_key}), skipping")
-            return True
+            return True, False, grafana_dashboard
 
         logger.info(f"GrafanaDashboard {namespace}/{name} exists but missing annotation, will update")
-        return False
+        return False, False, grafana_dashboard
 
     except ApiException as e:
         if e.status == 404:
             # GrafanaDashboard doesn't exist
             logger.info(f"GrafanaDashboard {namespace}/{name} does not exist, will create")
-            return False
+            return False, False, None
         else:
             logger.error(f"Error checking GrafanaDashboard {namespace}/{name}: {e}")
-            return False
+            return False, False, None
 
 def create_grafana_dashboard_crd(configmap, clientset):
     """Create GrafanaDashboard CRDs from ConfigMap. Handles multiple dashboards per ConfigMap."""
@@ -177,8 +191,28 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 grafana_dashboard_name = f"{base_name}-{key_part}"
 
             # Check if dashboard already exists and has been converted
-            if check_existing_grafana_dashboard(grafana_dashboard_name, configmap.metadata.namespace, clientset, conversion_mode):
+            should_skip, mode_changed, existing_dashboard = check_existing_grafana_dashboard(
+                grafana_dashboard_name, configmap.metadata.namespace, clientset, conversion_mode
+            )
+
+            if should_skip:
                 continue  # Skip this dashboard
+
+            # If the conversion mode has changed, delete the existing dashboard first
+            if mode_changed and existing_dashboard:
+                try:
+                    custom_api = client.CustomObjectsApi(clientset)
+                    custom_api.delete_namespaced_custom_object(
+                        group="grafana.integreatly.org",
+                        version="v1beta1",
+                        namespace=configmap.metadata.namespace,
+                        plural="grafanadashboards",
+                        name=grafana_dashboard_name
+                    )
+                    logger.info(f"Deleted existing GrafanaDashboard {grafana_dashboard_name} due to mode change from '{existing_dashboard.get('metadata', {}).get('labels', {}).get('grafana-dashboard-conversion-mode', 'full')}' to '{conversion_mode}'")
+                except ApiException as delete_e:
+                    logger.error(f"Failed to delete existing GrafanaDashboard {grafana_dashboard_name}: {delete_e}")
+                    continue  # Skip if we can't delete the existing one
 
             # Get current timestamp for annotation
             import datetime
@@ -242,7 +276,7 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 logger.info(f"Created GrafanaDashboard: {grafana_dashboard_name} with title: '{title}' from {dashboard_key} (mode: {conversion_mode})")
             except ApiException as e:
                 if e.status == 409:
-                    # Object already exists, try to update it
+                    # Object already exists, try to update it (should only happen in reference mode)
                     try:
                         custom_api.patch_namespaced_custom_object(
                             group="grafana.integreatly.org",

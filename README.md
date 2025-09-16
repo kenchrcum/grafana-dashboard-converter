@@ -157,6 +157,8 @@ grafana:
 
 **Note:** In reference mode, the converter will always update existing GrafanaDashboard resources to ensure they reflect the latest ConfigMap content.
 
+**Important:** When switching between conversion modes (full ↔ reference), the converter will automatically delete and recreate the GrafanaDashboard resources to avoid conflicts between different source types.
+
 ### 7. Create Legacy ConfigMaps
 
 Create ConfigMaps with your existing Grafana dashboards. The converter supports both single and multiple dashboards per ConfigMap:
