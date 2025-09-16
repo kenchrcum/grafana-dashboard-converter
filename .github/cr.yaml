@@ -2,9 +2,9 @@
 # See: https://github.com/helm/chart-releaser/blob/main/README.md#configuration
 
 # GitHub repository settings
-owner: ${{ github.repository_owner }}
-repo: ${{ github.event.repository.name }}
-git-repo: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}
+owner: kenchrcum
+repo: grafana-dashboard-converter
+git-repo: https://github.com/kenchrcum/grafana-dashboard-converter
 
 # Chart directory
 path: helm
@@ -14,7 +14,7 @@ pages-branch: gh-pages
 pages-index-path: index.yaml
 
 # Release settings
-charts-repo-url: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases
+charts-repo-url: https://github.com/kenchrcum/grafana-dashboard-converter/releases
 release-name-template: "{{ .Name }}-{{ .Version }}"
 index-name: index.yaml
 

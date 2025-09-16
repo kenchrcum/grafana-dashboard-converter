@@ -38,9 +38,9 @@ docker push kenchrcum/grafana-dashboard-converter:latest
 # Install the chart
 helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter
 
-# Or install from a registry (after publishing)
-helm repo add my-repo https://my-helm-repo.com
-helm install grafana-dashboard-converter my-repo/grafana-dashboard-converter
+# Or install from a registry
+helm repo add kenchrcum https://kenchrcum.github.io/grafana-dashboard-converter
+helm install grafana-dashboard-converter kenchrcum/grafana-dashboard-converter
 ```
 
 ### 3. Configure Namespace Watching
