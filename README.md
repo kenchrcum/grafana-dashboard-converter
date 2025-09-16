@@ -183,6 +183,81 @@ docker build -t grafana-dashboard-converter:v1.0.0 .
 docker build --build-arg PYTHON_VERSION=3.11 -t grafana-dashboard-converter:v1.0.0 .
 ```
 
+## CI/CD
+
+This project includes GitHub Actions workflows for automated building, testing, and deployment.
+
+### Workflows
+
+#### Docker Build (`docker.yml`)
+Automatically builds and pushes Docker images to GitHub Container Registry:
+
+- **Triggers**: Push to `main`/`master`, pull requests, and version tags
+- **Platforms**: Multi-arch support (AMD64, ARM64)
+- **Registry**: `ghcr.io`
+- **Tags**: Branch names, semantic versions, SHA hashes, and `latest`
+
+#### Helm Chart Release (`helm.yml`)
+Manages Helm chart releases and GitHub Pages hosting:
+
+- **Triggers**: Changes to `helm/` directory on `main`/`master`
+- **Features**:
+  - Chart linting and validation
+  - Automatic chart packaging and release creation
+  - GitHub Pages deployment for Helm repository hosting
+
+#### Helm Testing (`helm-test.yml`)
+Validates Helm charts on every change:
+
+- **Triggers**: Changes to `helm/` directory
+- **Tests**: YAML validation, Helm linting, template rendering
+
+#### GitHub Pages Setup (`setup-pages.yml`)
+One-time setup for Helm repository hosting:
+
+- **Trigger**: Manual workflow dispatch
+- **Creates**: `gh-pages` branch with initial repository structure
+
+### Setup Instructions
+
+1. **Enable GitHub Container Registry**:
+   ```bash
+   # The docker.yml workflow will automatically create and push to GHCR
+   # No additional setup required - just ensure GITHUB_TOKEN has package permissions
+   ```
+
+2. **Setup GitHub Pages for Helm Repository**:
+   ```bash
+   # Go to repository Settings > Pages
+   # Set source to "GitHub Actions"
+   # Then run the setup-pages workflow manually
+   ```
+
+3. **Repository Settings**:
+   - Go to **Settings > Actions > General**
+   - Set **Workflow permissions** to "Read and write permissions"
+   - Enable **Allow GitHub Actions to create and approve pull requests** (optional)
+
+### Using the Published Assets
+
+#### Docker Images
+```bash
+# Pull from GitHub Container Registry
+docker pull ghcr.io/your-username/grafana-dashboard-converter:latest
+
+# Or use in Kubernetes
+image: ghcr.io/your-username/grafana-dashboard-converter:v1.0.0
+```
+
+#### Helm Charts
+```bash
+# Add the GitHub Pages repository
+helm repo add grafana-dashboard-converter https://your-username.github.io/grafana-dashboard-converter/
+
+# Install the chart
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
+```
+
 ## Security
 
 The application follows Kubernetes security best practices:

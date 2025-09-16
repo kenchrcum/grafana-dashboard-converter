@@ -1,0 +1,12 @@
+owner: ${{ github.repository_owner }}
+repo: ${{ github.event.repository.name }}
+path: helm
+git-repo: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}
+git-branch: gh-pages
+charts-repo-url: https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/releases
+index-name: index.yaml
+pages-branch: gh-pages
+pages-index-path: index.yaml
+release-name-template: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+prerelease: false
+debug: false
