@@ -3,7 +3,7 @@ name: grafana-dashboard-converter
 description: A Helm chart for deploying Grafana Dashboard Converter
 type: application
 version: 0.1.0
-appVersion: "1.0.0"
+appVersion: "0.1.0"
 keywords:
   - grafana
   - dashboard
@@ -11,8 +11,8 @@ keywords:
   - kubernetes
   - operator
 maintainers:
-  - name: Kenneth
-    email: kenneth@example.com
-home: https://github.com/kenneth/grafana-dashboard-converter
+  - name: kenchrcum
+    email: kenchrcum@googlemail.com
+home: https://github.com/kenchrcum/grafana-dashboard-converter
 sources:
-  - https://github.com/kenneth/grafana-dashboard-converter
+  - https://github.com/kenchrcum/grafana-dashboard-converter
