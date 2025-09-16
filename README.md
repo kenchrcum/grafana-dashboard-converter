@@ -149,10 +149,13 @@ spec:
 - You want dashboards to automatically reflect ConfigMap changes
 - Storage efficiency is important
 
-**Configure Reference Mode:**
+**Configure Dashboard Options:**
 ```yaml
 grafana:
   conversionMode: "reference"
+  dashboard:
+    allowCrossNamespaceImport: true
+    resyncPeriod: "10m"
 ```
 
 **Note:** In reference mode, the converter will always update existing GrafanaDashboard resources to ensure they reflect the latest ConfigMap content.
@@ -241,6 +244,8 @@ spec:
         ...
       }
     }
+  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
+  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
   instanceSelector:
     matchLabels:
       dashboards: grafana
@@ -271,8 +276,8 @@ spec:
   configMapRef:
     name: loki-dashboards
     key: loki-chunks.json
-  resyncPeriod: 10m
-  allowCrossNamespaceImport: true
+  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
+  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
   instanceSelector:
     matchLabels:
       dashboards: grafana
@@ -327,6 +332,8 @@ spec:
 | `grafana.instanceSelector.matchLabels` | Labels used to match Grafana instances for dashboard deployment | `{"dashboards": "grafana"}` |
 | `grafana.convertedAnnotation` | Annotation key to mark converted dashboards (prevents re-processing) | `grafana-dashboard-converter/converted-at` |
 | `grafana.conversionMode` | Conversion mode: "full" (embed JSON) or "reference" (use ConfigMap reference) | `full` |
+| `grafana.dashboard.allowCrossNamespaceImport` | Allow cross-namespace import for dashboards | `true` |
+| `grafana.dashboard.resyncPeriod` | Resync period for dashboards | `10m` |
 | `resources.limits.cpu` | CPU limit | `100m` |
 | `resources.limits.memory` | Memory limit | `128Mi` |
 | `resources.requests.cpu` | CPU request | `50m` |
@@ -349,6 +356,8 @@ spec:
 - `GRAFANA_INSTANCE_SELECTOR`: JSON string defining labels to match Grafana instances (default: `{"matchLabels":{"dashboards":"grafana"}}`)
 - `GRAFANA_CONVERTED_ANNOTATION`: Annotation key to mark converted dashboards (default: `grafana-dashboard-converter/converted-at`)
 - `GRAFANA_CONVERSION_MODE`: Conversion mode ("full" or "reference") (default: "full")
+- `GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE`: Allow cross-namespace import for dashboards (default: "true")
+- `GRAFANA_DASHBOARD_RESYNC_PERIOD`: Resync period for dashboards (default: "10m")
 
 ## Development
 

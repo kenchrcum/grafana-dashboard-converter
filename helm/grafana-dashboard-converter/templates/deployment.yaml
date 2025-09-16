@@ -58,6 +58,10 @@ spec:
               value: {{ .Values.grafana.convertedAnnotation | quote }}
             - name: GRAFANA_CONVERSION_MODE
               value: {{ .Values.grafana.conversionMode | quote }}
+            - name: GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE
+              value: {{ .Values.grafana.dashboard.allowCrossNamespaceImport | quote }}
+            - name: GRAFANA_DASHBOARD_RESYNC_PERIOD
+              value: {{ .Values.grafana.dashboard.resyncPeriod | quote }}
           {{- if .Values.healthCheck.enabled }}
           ports:
             - name: http

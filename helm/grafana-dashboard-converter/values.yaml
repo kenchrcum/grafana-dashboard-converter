@@ -90,3 +90,9 @@ grafana:
   convertedAnnotation: "grafana-dashboard-converter/converted-at"
   # Conversion mode: "full" (embed JSON) or "reference" (use ConfigMap reference)
   conversionMode: "full"
+  # GrafanaDashboard options
+  dashboard:
+    # Allow cross-namespace import for dashboards
+    allowCrossNamespaceImport: true
+    # Resync period for dashboards (how often to check for ConfigMap changes in reference mode)
+    resyncPeriod: "10m"

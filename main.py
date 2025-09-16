@@ -21,9 +21,13 @@ WATCH_ALL_NAMESPACES_ENV = "WATCH_ALL_NAMESPACES"
 GRAFANA_INSTANCE_SELECTOR_ENV = "GRAFANA_INSTANCE_SELECTOR"
 GRAFANA_CONVERTED_ANNOTATION_ENV = "GRAFANA_CONVERTED_ANNOTATION"
 GRAFANA_CONVERSION_MODE_ENV = "GRAFANA_CONVERSION_MODE"
+GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE_ENV = "GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE"
+GRAFANA_DASHBOARD_RESYNC_PERIOD_ENV = "GRAFANA_DASHBOARD_RESYNC_PERIOD"
 DEFAULT_NAMESPACE = "default"
 DEFAULT_CONVERTED_ANNOTATION = "grafana-dashboard-converter/converted-at"
 DEFAULT_CONVERSION_MODE = "full"  # Options: "full" or "reference"
+DEFAULT_DASHBOARD_ALLOW_CROSS_NAMESPACE = True
+DEFAULT_DASHBOARD_RESYNC_PERIOD = "10m"
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +106,19 @@ def get_conversion_mode():
         mode = "full"
     logger.info(f"Using conversion mode: {mode}")
     return mode
+
+def get_dashboard_allow_cross_namespace():
+    """Get the allowCrossNamespaceImport setting for dashboards."""
+    value = os.getenv(GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE_ENV, str(DEFAULT_DASHBOARD_ALLOW_CROSS_NAMESPACE))
+    allow = value.lower() in ['true', '1', 'yes', 'on']
+    logger.info(f"Dashboard allowCrossNamespaceImport: {allow}")
+    return allow
+
+def get_dashboard_resync_period():
+    """Get the resync period for dashboards."""
+    period = os.getenv(GRAFANA_DASHBOARD_RESYNC_PERIOD_ENV, DEFAULT_DASHBOARD_RESYNC_PERIOD)
+    logger.info(f"Dashboard resync period: {period}")
+    return period
 
 def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode="full"):
     """Check if GrafanaDashboard already exists and determine if it should be updated.
@@ -252,16 +269,22 @@ def create_grafana_dashboard_crd(configmap, clientset):
                     "key": dashboard_key
                 }
                 # Add resync period for automatic updates
-                grafana_dashboard["spec"]["resyncPeriod"] = "10m"
+                grafana_dashboard["spec"]["resyncPeriod"] = get_dashboard_resync_period()
                 logger.info(f"Creating GrafanaDashboard with ConfigMap reference for {dashboard_key}")
+            else:
+                # For full mode, still add resyncPeriod if configured (useful for other purposes)
+                resync_period = get_dashboard_resync_period()
+                if resync_period:
+                    grafana_dashboard["spec"]["resyncPeriod"] = resync_period
 
             # Set folder if specified in labels
             if configmap.metadata.labels and "grafana_folder" in configmap.metadata.labels:
                 grafana_dashboard["spec"]["folder"] = configmap.metadata.labels["grafana_folder"]
 
-            # Set allowCrossNamespaceImport for reference mode
-            if conversion_mode == "reference" and configmap.metadata.namespace != "default":
-                grafana_dashboard["spec"]["allowCrossNamespaceImport"] = True
+            # Set allowCrossNamespaceImport for all dashboards
+            allow_cross_ns = get_dashboard_allow_cross_namespace()
+            if allow_cross_ns:
+                grafana_dashboard["spec"]["allowCrossNamespaceImport"] = allow_cross_ns
 
             # Try to create the GrafanaDashboard CRD
             try:
