@@ -19,4 +19,5 @@ release-name-template: "{{ .Name }}-{{ .Version }}"
 # Options
 prerelease: false
 packages-with-index: true
+make-absolute: true
 debug: true
