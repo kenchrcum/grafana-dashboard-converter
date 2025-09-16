@@ -4,7 +4,6 @@
 # GitHub repository settings
 owner: kenchrcum
 repo: grafana-dashboard-converter
-git-repo: https://github.com/kenchrcum/grafana-dashboard-converter
 
 # Chart directory
 path: helm
@@ -14,9 +13,8 @@ pages-branch: gh-pages
 pages-index-path: index.yaml
 
 # Release settings
-charts-repo-url: https://github.com/kenchrcum/grafana-dashboard-converter/releases
+charts-repo-url: https://kenchrcum.github.io/grafana-dashboard-converter
 release-name-template: "{{ .Name }}-{{ .Version }}"
-index-name: index.yaml
 
 # Options
 prerelease: false
