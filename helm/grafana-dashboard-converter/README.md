@@ -40,7 +40,7 @@ The following table lists the configurable parameters of the Grafana Dashboard C
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `0.3.1` |
+| `image.tag` | Docker image tag | `0.3.2` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
