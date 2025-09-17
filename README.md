@@ -19,10 +19,34 @@ This project addresses the migration from the old sidecar-based Grafana dashboar
 
 - Kubernetes cluster with grafana-operator installed
 - Helm 3.x
-- Docker (for building the image)
-- Python 3.8+ (for local development)
 
-### 1. Build and Push the Docker Image
+### 1. Deploy with Helm (Recommended)
+
+The easiest way to deploy the Grafana Dashboard Converter is using Helm:
+
+#### From Public Helm Repository
+
+```bash
+# Add the public Helm repository
+helm repo add grafana-dashboard-converter https://kenchrcum.github.io/grafana-dashboard-converter/
+
+# Update your local Helm chart repository cache
+helm repo update
+
+# Install the chart
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
+```
+
+#### From Local Directory (Development)
+
+```bash
+# Install the chart from local directory
+helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter
+```
+
+### 2. Alternative: Build and Deploy Docker Image
+
+If you prefer to build your own Docker image:
 
 ```bash
 # Build the image for Docker Hub
@@ -30,17 +54,11 @@ docker build -t kenchrcum/grafana-dashboard-converter:latest .
 
 # Push to Docker Hub
 docker push kenchrcum/grafana-dashboard-converter:latest
-```
 
-### 2. Deploy with Helm
-
-```bash
-# Install the chart
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter
-
-# Or install from a registry
-helm repo add kenchrcum https://kenchrcum.github.io/grafana-dashboard-converter
-helm install grafana-dashboard-converter kenchrcum/grafana-dashboard-converter
+# Then deploy using Helm with your custom image
+helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+  --set image.repository=your-registry/grafana-dashboard-converter \
+  --set image.tag=your-tag
 ```
 
 ### 3. Configure Namespace Watching
@@ -49,13 +67,13 @@ You can configure the converter to watch either a specific namespace or all name
 
 **Watch specific namespace (default):**
 ```bash
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set watchNamespace=my-namespace
 ```
 
 **Watch all namespaces:**
 ```bash
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set watchAllNamespaces=true
 ```
 
@@ -65,7 +83,7 @@ You can customize which Grafana instances your dashboards are deployed to by con
 
 **Using Helm:**
 ```bash
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set grafana.instanceSelector.matchLabels.app=grafana \
   --set grafana.instanceSelector.matchLabels.team=platform
 ```
@@ -324,7 +342,7 @@ spec:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `latest` |
+| `image.tag` | Docker image tag | `0.3.2` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
@@ -339,15 +357,31 @@ spec:
 | `resources.requests.cpu` | CPU request | `50m` |
 | `resources.requests.memory` | Memory request | `64Mi` |
 | `rbac.create` | Create RBAC resources | `true` |
+| `rbac.clusterRole.create` | Create cluster role for cluster-wide RBAC | `true` |
 | `serviceAccount.create` | Create service account | `true` |
 | `serviceAccount.name` | Service account name | `""` |
+| `serviceAccount.annotations` | Service account annotations | `{}` |
 | `healthCheck.enabled` | Enable health checks | `true` |
 | `healthCheck.port` | Health check port | `8080` |
+| `healthCheck.livenessProbe.initialDelaySeconds` | Initial delay for liveness probe | `30` |
+| `healthCheck.livenessProbe.periodSeconds` | Period for liveness probe | `30` |
+| `healthCheck.livenessProbe.timeoutSeconds` | Timeout for liveness probe | `5` |
+| `healthCheck.livenessProbe.failureThreshold` | Failure threshold for liveness probe | `3` |
+| `healthCheck.readinessProbe.initialDelaySeconds` | Initial delay for readiness probe | `5` |
+| `healthCheck.readinessProbe.periodSeconds` | Period for readiness probe | `10` |
+| `healthCheck.readinessProbe.timeoutSeconds` | Timeout for readiness probe | `5` |
+| `healthCheck.readinessProbe.failureThreshold` | Failure threshold for readiness probe | `3` |
 | `podSecurityContext.fsGroup` | Pod security context fsGroup | `10001` |
 | `securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` |
 | `securityContext.readOnlyRootFilesystem` | Read-only root filesystem | `true` |
 | `securityContext.runAsNonRoot` | Run as non-root user | `true` |
 | `securityContext.runAsUser` | Run as user ID | `10001` |
+| `securityContext.capabilities.drop` | Dropped capabilities | `["ALL"]` |
+| `nodeSelector` | Node labels for pod assignment | `{}` |
+| `tolerations` | Tolerations for pod assignment | `[]` |
+| `affinity` | Affinity rules for pod assignment | `{}` |
+| `podLabels` | Additional labels for pods | `{}` |
+| `podAnnotations` | Additional annotations for pods | `{}` |
 
 ### Environment Variables
 
@@ -468,8 +502,11 @@ image: kenchrcum/grafana-dashboard-converter:latest
 
 #### Helm Charts
 ```bash
-# Add the GitHub Pages repository
-helm repo add grafana-dashboard-converter https://kenneth.github.io/grafana-dashboard-converter/
+# Add the public Helm repository
+helm repo add grafana-dashboard-converter https://kenchrcum.github.io/grafana-dashboard-converter/
+
+# Update your local Helm chart repository cache
+helm repo update
 
 # Install the chart
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
