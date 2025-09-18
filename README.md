@@ -19,29 +19,46 @@ This project addresses the migration from the old sidecar-based Grafana dashboar
 
 - Kubernetes cluster with grafana-operator installed
 - Helm 3.x
-- Docker (for building the image)
-- Python 3.8+ (for local development)
 
-### 1. Build and Push the Docker Image
+### 1. Deploy with Helm (Recommended)
+
+The easiest way to deploy the Grafana Dashboard Converter is using Helm:
+
+#### From Public Helm Repository
 
 ```bash
-# Build the image
-docker build -t grafana-dashboard-converter:latest .
+# Add the public Helm repository
+helm repo add grafana-dashboard-converter https://kenchrcum.github.io/grafana-dashboard-converter/
 
-# Push to your registry
-docker tag grafana-dashboard-converter:latest your-registry/grafana-dashboard-converter:latest
-docker push your-registry/grafana-dashboard-converter:latest
+# Update your local Helm chart repository cache
+helm repo update
+
+# Install the chart
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
 ```
 
-### 2. Deploy with Helm
+#### From Local Directory (Development)
 
 ```bash
-# Install the chart
+# Install the chart from local directory
 helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter
+```
 
-# Or install from a registry (after publishing)
-helm repo add my-repo https://my-helm-repo.com
-helm install grafana-dashboard-converter my-repo/grafana-dashboard-converter
+### 2. Alternative: Build and Deploy Docker Image
+
+If you prefer to build your own Docker image:
+
+```bash
+# Build the image for Docker Hub
+docker build -t kenchrcum/grafana-dashboard-converter:latest .
+
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:latest
+
+# Then deploy using Helm with your custom image
+helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+  --set image.repository=your-registry/grafana-dashboard-converter \
+  --set image.tag=your-tag
 ```
 
 ### 3. Configure Namespace Watching
@@ -50,20 +67,124 @@ You can configure the converter to watch either a specific namespace or all name
 
 **Watch specific namespace (default):**
 ```bash
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set watchNamespace=my-namespace
 ```
 
 **Watch all namespaces:**
 ```bash
-helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set watchAllNamespaces=true
 ```
 
-### 4. Create Legacy ConfigMaps
+### 4. Configure Grafana Instance Selector (Optional)
 
-Create ConfigMaps with your existing Grafana dashboards:
+You can customize which Grafana instances your dashboards are deployed to by configuring the instance selector. The default configuration matches Grafana instances with the label `dashboards: grafana`.
 
+**Using Helm:**
+```bash
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
+  --set grafana.instanceSelector.matchLabels.app=grafana \
+  --set grafana.instanceSelector.matchLabels.team=platform
+```
+
+**Using values.yaml:**
+```yaml
+grafana:
+  instanceSelector:
+    matchLabels:
+      app: grafana
+      team: platform
+```
+
+### 5. Dashboard Conversion Optimization
+
+The converter automatically adds an annotation to created GrafanaDashboard resources to prevent re-processing on subsequent runs. By default, it uses the annotation key `grafana-dashboard-converter/converted-at` with a timestamp value.
+
+**Benefits:**
+- **Performance**: Avoids unnecessary API calls and processing
+- **Idempotency**: Multiple runs won't create duplicate resources
+- **Tracking**: Easy to identify when dashboards were converted
+
+**Custom annotation key:**
+```yaml
+grafana:
+  convertedAnnotation: "my-org/dashboard-converted"
+```
+
+**Annotation format:**
+```yaml
+metadata:
+  annotations:
+    grafana-dashboard-converter/converted-at: "2025-09-16T10:23:45.123456Z"
+```
+
+### 6. Conversion Mode Selection
+
+The converter supports two conversion modes that determine how GrafanaDashboard resources are created:
+
+#### Full Conversion Mode (Default)
+Creates GrafanaDashboard resources with embedded JSON content:
+```yaml
+spec:
+  json: |
+    {
+      "dashboard": {
+        "title": "My Dashboard",
+        ...
+      }
+    }
+```
+
+**Benefits:**
+- Self-contained: Dashboard content is embedded in the CRD
+- No external dependencies: Works even if ConfigMap is deleted
+- Annotation-based optimization: Prevents re-processing
+
+**Use when:**
+- You want immutable dashboard snapshots
+- ConfigMaps may be deleted after conversion
+- You prefer self-contained resources
+
+#### Reference Mode
+Creates GrafanaDashboard resources that reference the original ConfigMap:
+```yaml
+spec:
+  configMapRef:
+    name: my-legacy-dashboard
+    key: dashboard.json
+  resyncPeriod: 10m
+  allowCrossNamespaceImport: true
+```
+
+**Benefits:**
+- Automatic sync: Dashboard updates when ConfigMap changes
+- Reduced duplication: Content stays in ConfigMap
+- Real-time updates: Changes propagate automatically
+
+**Use when:**
+- ConfigMaps are actively maintained and updated
+- You want dashboards to automatically reflect ConfigMap changes
+- Storage efficiency is important
+
+**Configure Dashboard Options:**
+```yaml
+grafana:
+  conversionMode: "reference"
+  dashboard:
+    allowCrossNamespaceImport: true
+    resyncPeriod: "10m"
+```
+
+**Note:** In reference mode, the converter will always update existing GrafanaDashboard resources to ensure they reflect the latest ConfigMap content.
+
+**Important:** When switching between conversion modes (full ↔ reference), the converter will automatically delete and recreate the GrafanaDashboard resources to avoid conflicts between different source types.
+
+### 7. Create Legacy ConfigMaps
+
+Create ConfigMaps with your existing Grafana dashboards. The converter supports both single and multiple dashboards per ConfigMap:
+
+#### Single Dashboard per ConfigMap
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -82,12 +203,102 @@ data:
     }
 ```
 
-### 5. Verify Conversion
+#### Multiple Dashboards per ConfigMap
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-dashboards
+  labels:
+    grafana_dashboard: "1"
+    grafana_folder: "Loki"
+data:
+  loki-chunks.json: |
+    {
+      "dashboard": {
+        "title": "Loki Chunks",
+        ...
+      }
+    }
+  loki-logs.json: |
+    {
+      "dashboard": {
+        "title": "Loki Logs",
+        ...
+      }
+    }
+  loki-operational.json: |
+    {
+      "dashboard": {
+        "title": "Loki Operational",
+        ...
+      }
+    }
+```
 
-The converter will automatically create a corresponding GrafanaDashboard CRD:
+**Note:** When a ConfigMap contains multiple dashboards, each will be converted to a separate GrafanaDashboard CRD with names like `configmap-name-dashboard-key`.
+
+### 8. Verify Conversion
+
+The converter will automatically create corresponding GrafanaDashboard CRDs:
 
 ```bash
 kubectl get grafanadashboards
+```
+
+**Single Dashboard Example (Full Mode):**
+```yaml
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: my-legacy-dashboard
+  labels:
+    grafana-dashboard-conversion-mode: full
+spec:
+  json: |
+    {
+      "dashboard": {
+        "title": "My Dashboard",
+        ...
+      }
+    }
+  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
+  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+```
+
+**Multiple Dashboards Example:**
+For a ConfigMap with multiple dashboards, you'll see multiple GrafanaDashboard resources:
+
+```bash
+kubectl get grafanadashboards
+NAME                          AGE
+loki-dashboards-loki-chunks   5m
+loki-dashboards-loki-logs     5m
+loki-dashboards-loki-operational 5m
+```
+
+Each dashboard will have labels indicating its source:
+```yaml
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: loki-dashboards-loki-chunks
+  labels:
+    grafana-dashboard-conversion-mode: reference
+    grafana-dashboard-source-configmap: loki-dashboards
+    grafana-dashboard-source-key: loki-chunks.json
+spec:
+  configMapRef:
+    name: loki-dashboards
+    key: loki-chunks.json
+  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
+  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
 ```
 
 ## Project Structure
@@ -120,6 +331,7 @@ kubectl get grafanadashboards
 ├── examples/                           # Sample ConfigMaps
 │   ├── sample-dashboard-configmap.yaml
 │   └── cluster-wide-dashboard-configmap.yaml
+├── build.sh                           # Build script for Docker images
 └── deploy.sh                         # Deployment script
 ```
 
@@ -129,31 +341,57 @@ kubectl get grafanadashboards
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Docker image repository | `grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `latest` |
+| `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
+| `image.tag` | Docker image tag | `0.3.3` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
 | `watchAllNamespaces` | Watch ConfigMaps across all namespaces | `false` |
+| `grafana.instanceSelector.matchLabels` | Labels used to match Grafana instances for dashboard deployment | `{"dashboards": "grafana"}` |
+| `grafana.convertedAnnotation` | Annotation key to mark converted dashboards (prevents re-processing) | `grafana-dashboard-converter/converted-at` |
+| `grafana.conversionMode` | Conversion mode: "full" (embed JSON) or "reference" (use ConfigMap reference) | `full` |
+| `grafana.dashboard.allowCrossNamespaceImport` | Allow cross-namespace import for dashboards | `true` |
+| `grafana.dashboard.resyncPeriod` | Resync period for dashboards | `10m` |
 | `resources.limits.cpu` | CPU limit | `100m` |
 | `resources.limits.memory` | Memory limit | `128Mi` |
 | `resources.requests.cpu` | CPU request | `50m` |
 | `resources.requests.memory` | Memory request | `64Mi` |
 | `rbac.create` | Create RBAC resources | `true` |
+| `rbac.clusterRole.create` | Create cluster role for cluster-wide RBAC | `true` |
 | `serviceAccount.create` | Create service account | `true` |
 | `serviceAccount.name` | Service account name | `""` |
+| `serviceAccount.annotations` | Service account annotations | `{}` |
 | `healthCheck.enabled` | Enable health checks | `true` |
 | `healthCheck.port` | Health check port | `8080` |
+| `healthCheck.livenessProbe.initialDelaySeconds` | Initial delay for liveness probe | `30` |
+| `healthCheck.livenessProbe.periodSeconds` | Period for liveness probe | `30` |
+| `healthCheck.livenessProbe.timeoutSeconds` | Timeout for liveness probe | `5` |
+| `healthCheck.livenessProbe.failureThreshold` | Failure threshold for liveness probe | `3` |
+| `healthCheck.readinessProbe.initialDelaySeconds` | Initial delay for readiness probe | `5` |
+| `healthCheck.readinessProbe.periodSeconds` | Period for readiness probe | `10` |
+| `healthCheck.readinessProbe.timeoutSeconds` | Timeout for readiness probe | `5` |
+| `healthCheck.readinessProbe.failureThreshold` | Failure threshold for readiness probe | `3` |
 | `podSecurityContext.fsGroup` | Pod security context fsGroup | `10001` |
 | `securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` |
 | `securityContext.readOnlyRootFilesystem` | Read-only root filesystem | `true` |
 | `securityContext.runAsNonRoot` | Run as non-root user | `true` |
 | `securityContext.runAsUser` | Run as user ID | `10001` |
+| `securityContext.capabilities.drop` | Dropped capabilities | `["ALL"]` |
+| `nodeSelector` | Node labels for pod assignment | `{}` |
+| `tolerations` | Tolerations for pod assignment | `[]` |
+| `affinity` | Affinity rules for pod assignment | `{}` |
+| `podLabels` | Additional labels for pods | `{}` |
+| `podAnnotations` | Additional annotations for pods | `{}` |
 
 ### Environment Variables
 
 - `NAMESPACE`: Namespace to watch for ConfigMaps (defaults to pod's namespace)
 - `WATCH_ALL_NAMESPACES`: Enable watching across all namespaces (default: false)
+- `GRAFANA_INSTANCE_SELECTOR`: JSON string defining labels to match Grafana instances (default: `{"matchLabels":{"dashboards":"grafana"}}`)
+- `GRAFANA_CONVERTED_ANNOTATION`: Annotation key to mark converted dashboards (default: `grafana-dashboard-converter/converted-at`)
+- `GRAFANA_CONVERSION_MODE`: Conversion mode ("full" or "reference") (default: "full")
+- `GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE`: Allow cross-namespace import for dashboards (default: "true")
+- `GRAFANA_DASHBOARD_RESYNC_PERIOD`: Resync period for dashboards (default: "10m")
 
 ## Development
 
@@ -176,26 +414,21 @@ NAMESPACE=my-namespace python main.py
 ### Building for Production
 
 ```bash
-# Build Docker image
-docker build -t grafana-dashboard-converter:v1.0.0 .
+# Build Docker image for Docker Hub
+docker build -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
 
 # Or build with specific Python version
-docker build --build-arg PYTHON_VERSION=3.11 -t grafana-dashboard-converter:v1.0.0 .
+docker build --build-arg PYTHON_VERSION=3.11 -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
+
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:v1.0.0
 ```
 
 ## CI/CD
 
-This project includes GitHub Actions workflows for automated building, testing, and deployment.
+This project includes GitHub Actions workflows for automated testing and deployment. Docker images are built locally and pushed to Docker Hub.
 
 ### Workflows
-
-#### Docker Build (`docker.yml`)
-Automatically builds and pushes Docker images to GitHub Container Registry:
-
-- **Triggers**: Push to `main`/`master`, pull requests, and version tags
-- **Platforms**: Multi-arch support (AMD64, ARM64)
-- **Registry**: `ghcr.io`
-- **Tags**: Branch names, semantic versions, SHA hashes, and `latest`
 
 #### Helm Chart Release (`helm.yml`)
 Manages Helm chart releases and GitHub Pages hosting:
@@ -218,22 +451,40 @@ One-time setup for Helm repository hosting:
 - **Trigger**: Manual workflow dispatch
 - **Creates**: `gh-pages` branch with initial repository structure
 
+### Docker Image Management
+
+Docker images are built locally and pushed to Docker Hub (`kenchrcum/grafana-dashboard-converter`).
+
+#### Building and Pushing Images
+
+```bash
+# Build locally
+docker build -t kenchrcum/grafana-dashboard-converter:latest .
+
+# Push to Docker Hub
+docker push kenchrcum/grafana-dashboard-converter:latest
+
+# Or use the provided build script (recommended)
+./build.sh                                    # Build only
+TAG=v1.0.0 ./build.sh                         # Build with specific tag
+PUSH=true ./build.sh                          # Build and push
+TAG=v1.0.0 PUSH=true ./build.sh               # Build specific version and push
+
+# Alternative: Use deploy script
+./deploy.sh                                    # Builds locally
+PUSH_TO_DOCKER_HUB=true ./deploy.sh           # Builds and pushes to Docker Hub
+```
+
 ### Setup Instructions
 
-1. **Enable GitHub Container Registry**:
-   ```bash
-   # The docker.yml workflow will automatically create and push to GHCR
-   # No additional setup required - just ensure GITHUB_TOKEN has package permissions
-   ```
-
-2. **Setup GitHub Pages for Helm Repository**:
+1. **Setup GitHub Pages for Helm Repository**:
    ```bash
    # Go to repository Settings > Pages
    # Set source to "GitHub Actions"
    # Then run the setup-pages workflow manually
    ```
 
-3. **Repository Settings**:
+2. **Repository Settings**:
    - Go to **Settings > Actions > General**
    - Set **Workflow permissions** to "Read and write permissions"
    - Enable **Allow GitHub Actions to create and approve pull requests** (optional)
@@ -242,17 +493,20 @@ One-time setup for Helm repository hosting:
 
 #### Docker Images
 ```bash
-# Pull from GitHub Container Registry
-docker pull ghcr.io/your-username/grafana-dashboard-converter:latest
+# Pull from Docker Hub
+docker pull kenchrcum/grafana-dashboard-converter:latest
 
 # Or use in Kubernetes
-image: ghcr.io/your-username/grafana-dashboard-converter:v1.0.0
+image: kenchrcum/grafana-dashboard-converter:latest
 ```
 
 #### Helm Charts
 ```bash
-# Add the GitHub Pages repository
-helm repo add grafana-dashboard-converter https://your-username.github.io/grafana-dashboard-converter/
+# Add the public Helm repository
+helm repo add grafana-dashboard-converter https://kenchrcum.github.io/grafana-dashboard-converter/
+
+# Update your local Helm chart repository cache
+helm repo update
 
 # Install the chart
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
