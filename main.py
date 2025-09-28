@@ -175,6 +175,11 @@ def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode
 def create_grafana_dashboard_crd(configmap, clientset):
     """Create GrafanaDashboard CRDs from ConfigMap. Handles multiple dashboards per ConfigMap."""
 
+    # Check if ConfigMap has data
+    if not configmap.data:
+        logger.warning(f"ConfigMap {configmap.metadata.namespace}/{configmap.metadata.name} has no data, skipping")
+        return
+
     # Find all dashboard JSON files in the ConfigMap data
     dashboard_files = []
     for key, value in configmap.data.items():
