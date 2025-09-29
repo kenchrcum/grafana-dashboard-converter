@@ -342,7 +342,7 @@ spec:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `0.3.3` |
+| `image.tag` | Docker image tag | `0.3.4` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |

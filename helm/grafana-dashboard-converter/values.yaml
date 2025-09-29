@@ -5,7 +5,7 @@
 # Application configuration
 image:
   repository: kenchrcum/grafana-dashboard-converter
-  tag: "0.3.3"
+  tag: "0.3.4"
   pullPolicy: Always
 
 # Deployment configuration
