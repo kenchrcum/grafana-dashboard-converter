@@ -1,30 +1,44 @@
 # Grafana Dashboard Converter
 
+![Version](https://img.shields.io/badge/version-0.3.4-blue.svg)
+[![License](https://img.shields.io/badge/license-Unlicense-lightgrey.svg)](LICENSE)
+
 A Kubernetes application that automatically converts legacy ConfigMap-based Grafana dashboards to GrafanaDashboard Custom Resources compatible with the [grafana-operator](https://github.com/grafana-operator/grafana-operator).
 
-## Overview
+## 🎯 Overview
 
 This project addresses the migration from the old sidecar-based Grafana dashboard deployment pattern to the modern grafana-operator approach. The converter watches for ConfigMaps labeled with `grafana_dashboard=1` and automatically creates corresponding `GrafanaDashboard` CRDs.
 
-## Architecture
+### Key Features
+
+- 🔄 **Automatic Conversion**: Watches ConfigMaps and creates GrafanaDashboard CRDs
+- 🏷️ **Label-based Discovery**: Uses `grafana_dashboard=1` label for ConfigMap identification
+- 🎛️ **Dual Conversion Modes**: Full embedding or ConfigMap reference modes
+- 📁 **Multi-dashboard Support**: Single or multiple dashboards per ConfigMap
+- 🔒 **Security First**: Non-root execution, read-only filesystem, minimal RBAC
+- 🚀 **Production Ready**: Health checks, resource limits, comprehensive monitoring
+- 📦 **Helm Integration**: Complete Helm chart for easy deployment
+- 🌐 **Cross-namespace Support**: Configurable namespace isolation
+
+## 🏗️ Architecture
 
 - **Converter Application**: Python application that watches Kubernetes ConfigMaps
-- **Docker Container**: Python-based container with dependencies
+- **Docker Container**: Multi-stage build with security best practices
 - **Kubernetes Deployment**: Includes RBAC, health checks, and security best practices
-- **Helm Chart**: Easy deployment and configuration management
+- **Helm Chart**: Complete deployment and configuration management
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Kubernetes cluster with grafana-operator installed
-- Helm 3.x
+- ✅ Kubernetes cluster (v1.19+)
+- ✅ [grafana-operator](https://github.com/grafana-operator/grafana-operator) installed
+- ✅ Helm 3.x
+- ✅ kubectl configured
 
-### 1. Deploy with Helm (Recommended)
+### Installation
 
-The easiest way to deploy the Grafana Dashboard Converter is using Helm:
-
-#### From Public Helm Repository
+#### Option 1: Public Helm Repository (Recommended)
 
 ```bash
 # Add the public Helm repository
@@ -35,96 +49,146 @@ helm repo update
 
 # Install the chart
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter
+
+# Verify deployment
+kubectl get pods -l app.kubernetes.io/name=grafana-dashboard-converter
 ```
 
-#### From Local Directory (Development)
+#### Option 2: Local Helm Chart (Development)
 
 ```bash
-# Install the chart from local directory
+# Install from local directory
 helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter
+
+# Or with custom configuration
+helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
+  --set watchNamespace=monitoring \
+  --set grafana.conversionMode=reference
 ```
 
-### 2. Alternative: Build and Deploy Docker Image
-
-If you prefer to build your own Docker image:
+#### Option 3: Custom Docker Image
 
 ```bash
-# Build the image for Docker Hub
-docker build -t kenchrcum/grafana-dashboard-converter:latest .
+# Build your own image
+docker build -t your-registry/grafana-dashboard-converter:latest .
 
-# Push to Docker Hub
-docker push kenchrcum/grafana-dashboard-converter:latest
+# Push to registry
+docker push your-registry/grafana-dashboard-converter:latest
 
-# Then deploy using Helm with your custom image
+# Deploy with custom image
 helm install grafana-dashboard-converter ./helm/grafana-dashboard-converter \
   --set image.repository=your-registry/grafana-dashboard-converter \
-  --set image.tag=your-tag
+  --set image.tag=latest
 ```
 
-### 3. Configure Namespace Watching
+### Configuration
 
-You can configure the converter to watch either a specific namespace or all namespaces:
+#### Namespace Watching
 
-**Watch specific namespace (default):**
+The converter can watch specific namespaces or all namespaces:
+
+**Single Namespace (Default):**
 ```bash
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
-  --set watchNamespace=my-namespace
+  --set watchNamespace=monitoring
 ```
 
-**Watch all namespaces:**
+**All Namespaces (Requires Cluster RBAC):**
 ```bash
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set watchAllNamespaces=true
 ```
 
-### 4. Configure Grafana Instance Selector (Optional)
+#### Grafana Instance Selection
 
-You can customize which Grafana instances your dashboards are deployed to by configuring the instance selector. The default configuration matches Grafana instances with the label `dashboards: grafana`.
+Configure which Grafana instances receive the dashboards:
 
-**Using Helm:**
 ```bash
 helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
   --set grafana.instanceSelector.matchLabels.app=grafana \
-  --set grafana.instanceSelector.matchLabels.team=platform
+  --set grafana.instanceSelector.matchLabels.environment=production
 ```
 
-**Using values.yaml:**
-```yaml
-grafana:
-  instanceSelector:
-    matchLabels:
-      app: grafana
-      team: platform
+#### Conversion Modes
+
+Choose the right conversion mode for your use case:
+
+**Full Mode (Default)** - Embeds JSON directly in CRD:
+```bash
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
+  --set grafana.conversionMode=full
 ```
 
-### 5. Dashboard Conversion Optimization
-
-The converter automatically adds an annotation to created GrafanaDashboard resources to prevent re-processing on subsequent runs. By default, it uses the annotation key `grafana-dashboard-converter/converted-at` with a timestamp value.
-
-**Benefits:**
-- **Performance**: Avoids unnecessary API calls and processing
-- **Idempotency**: Multiple runs won't create duplicate resources
-- **Tracking**: Easy to identify when dashboards were converted
-
-**Custom annotation key:**
-```yaml
-grafana:
-  convertedAnnotation: "my-org/dashboard-converted"
+**Reference Mode** - References ConfigMap for live updates:
+```bash
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
+  --set grafana.conversionMode=reference \
+  --set grafana.dashboard.resyncPeriod=5m
 ```
 
-**Annotation format:**
+### Usage Examples
+
+#### 1. Create Your First Dashboard
+
+```bash
+# Apply example ConfigMap
+kubectl apply -f examples/sample-dashboard-configmap.yaml
+
+# Check conversion results
+kubectl get grafanadashboards
+kubectl describe grafanadashboard sample-grafana-dashboard
+```
+
+#### 2. Multiple Dashboards per ConfigMap
+
 ```yaml
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  annotations:
-    grafana-dashboard-converter/converted-at: "2025-09-16T10:23:45.123456Z"
+  name: monitoring-dashboards
+  labels:
+    grafana_dashboard: "1"
+    grafana_folder: "Monitoring"
+data:
+  system-overview.json: |
+    { "dashboard": { "title": "System Overview", ... } }
+  kubernetes-cluster.json: |
+    { "dashboard": { "title": "Kubernetes Cluster", ... } }
 ```
 
-### 6. Conversion Mode Selection
+#### 3. Environment Variables Configuration
 
-The converter supports two conversion modes that determine how GrafanaDashboard resources are created:
+```bash
+# Set custom conversion mode
+export GRAFANA_CONVERSION_MODE=reference
+export GRAFANA_DASHBOARD_RESYNC_PERIOD=5m
 
-#### Full Conversion Mode (Default)
+# Run locally for testing
+python main.py
+```
+
+#### 4. Monitoring and Troubleshooting
+
+```bash
+# Check converter logs
+kubectl logs -l app.kubernetes.io/name=grafana-dashboard-converter
+
+# Check health endpoints
+kubectl port-forward deployment/grafana-dashboard-converter 8080:8080
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+
+# Monitor conversion metrics
+kubectl get grafanadashboards --watch
+```
+
+## ⚙️ Conversion Modes
+
+The converter supports two modes for creating GrafanaDashboard resources:
+
+### Full Mode (Default)
 Creates GrafanaDashboard resources with embedded JSON content:
+
 ```yaml
 spec:
   json: |
@@ -137,17 +201,18 @@ spec:
 ```
 
 **Benefits:**
-- Self-contained: Dashboard content is embedded in the CRD
-- No external dependencies: Works even if ConfigMap is deleted
-- Annotation-based optimization: Prevents re-processing
+- 🔒 **Self-contained**: Dashboard content embedded in CRD
+- 🗑️ **Immutable**: Works even if ConfigMap is deleted
+- ⚡ **Optimized**: Annotation-based processing prevention
 
-**Use when:**
-- You want immutable dashboard snapshots
-- ConfigMaps may be deleted after conversion
-- You prefer self-contained resources
+**Best for:**
+- Static dashboards that don't change often
+- Environments where ConfigMaps may be cleaned up
+- Self-contained resource preferences
 
-#### Reference Mode
+### Reference Mode
 Creates GrafanaDashboard resources that reference the original ConfigMap:
+
 ```yaml
 spec:
   configMapRef:
@@ -158,38 +223,49 @@ spec:
 ```
 
 **Benefits:**
-- Automatic sync: Dashboard updates when ConfigMap changes
-- Reduced duplication: Content stays in ConfigMap
-- Real-time updates: Changes propagate automatically
+- 🔄 **Live sync**: Dashboard updates when ConfigMap changes
+- 💾 **Efficient**: Content stays in ConfigMap, no duplication
+- 📡 **Real-time**: Changes propagate automatically
 
-**Use when:**
-- ConfigMaps are actively maintained and updated
-- You want dashboards to automatically reflect ConfigMap changes
-- Storage efficiency is important
+**Best for:**
+- Active dashboard development and maintenance
+- Environments with frequent dashboard updates
+- Storage efficiency requirements
 
-**Configure Dashboard Options:**
-```yaml
-grafana:
-  conversionMode: "reference"
-  dashboard:
-    allowCrossNamespaceImport: true
-    resyncPeriod: "10m"
+### Configuration
+
+**Set conversion mode via Helm:**
+```bash
+# Full mode (default)
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
+  --set grafana.conversionMode=full
+
+# Reference mode with custom resync
+helm install grafana-dashboard-converter grafana-dashboard-converter/grafana-dashboard-converter \
+  --set grafana.conversionMode=reference \
+  --set grafana.dashboard.resyncPeriod=5m
 ```
 
-**Note:** In reference mode, the converter will always update existing GrafanaDashboard resources to ensure they reflect the latest ConfigMap content.
+**Environment variables:**
+```bash
+export GRAFANA_CONVERSION_MODE=reference
+export GRAFANA_DASHBOARD_RESYNC_PERIOD=5m
+```
 
-**Important:** When switching between conversion modes (full ↔ reference), the converter will automatically delete and recreate the GrafanaDashboard resources to avoid conflicts between different source types.
+**Mode switching:** When switching between modes, the converter automatically deletes and recreates GrafanaDashboard resources to prevent conflicts.
 
-### 7. Create Legacy ConfigMaps
+## 📋 Dashboard Examples
 
-Create ConfigMaps with your existing Grafana dashboards. The converter supports both single and multiple dashboards per ConfigMap:
+Create ConfigMaps with your existing Grafana dashboards using the `grafana_dashboard=1` label.
 
-#### Single Dashboard per ConfigMap
+### Single Dashboard ConfigMap
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: my-legacy-dashboard
+  namespace: monitoring
   labels:
     grafana_dashboard: "1"
     grafana_folder: "Monitoring"
@@ -197,18 +273,41 @@ data:
   dashboard.json: |
     {
       "dashboard": {
+        "id": null,
         "title": "My Dashboard",
-        "panels": [...]
+        "tags": ["templated"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Sample Panel",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "up",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "refresh": "5s"
       }
     }
 ```
 
-#### Multiple Dashboards per ConfigMap
+### Multiple Dashboards ConfigMap
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: loki-dashboards
+  namespace: monitoring
   labels:
     grafana_dashboard: "1"
     grafana_folder: "Loki"
@@ -217,70 +316,70 @@ data:
     {
       "dashboard": {
         "title": "Loki Chunks",
-        ...
+        "description": "Loki chunk storage metrics"
       }
     }
   loki-logs.json: |
     {
       "dashboard": {
         "title": "Loki Logs",
-        ...
+        "description": "Loki log processing metrics"
       }
     }
   loki-operational.json: |
     {
       "dashboard": {
         "title": "Loki Operational",
-        ...
+        "description": "Loki operational health"
       }
     }
 ```
 
-**Note:** When a ConfigMap contains multiple dashboards, each will be converted to a separate GrafanaDashboard CRD with names like `configmap-name-dashboard-key`.
+**Note:** Multiple dashboards per ConfigMap are converted to separate GrafanaDashboard CRDs named like `loki-dashboards-loki-chunks`.
 
-### 8. Verify Conversion
+## 🔍 Verification
 
-The converter will automatically create corresponding GrafanaDashboard CRDs:
+After creating ConfigMaps, verify the conversion process:
 
 ```bash
+# List all converted dashboards
 kubectl get grafanadashboards
+
+# Check specific dashboard details
+kubectl describe grafanadashboard my-legacy-dashboard
+
+# Check conversion logs
+kubectl logs -l app.kubernetes.io/name=grafana-dashboard-converter --tail=50
 ```
 
-**Single Dashboard Example (Full Mode):**
+### Expected Results
+
+**Full Mode Dashboard:**
 ```yaml
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
   name: my-legacy-dashboard
+  namespace: monitoring
   labels:
+    grafana-dashboard: converted
     grafana-dashboard-conversion-mode: full
+    grafana-dashboard-source-configmap: my-legacy-dashboard
 spec:
-  json: |
+  json: |-
     {
       "dashboard": {
         "title": "My Dashboard",
         ...
       }
     }
-  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
-  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
+  allowCrossNamespaceImport: true
   instanceSelector:
     matchLabels:
       dashboards: grafana
 ```
 
-**Multiple Dashboards Example:**
-For a ConfigMap with multiple dashboards, you'll see multiple GrafanaDashboard resources:
-
-```bash
-kubectl get grafanadashboards
-NAME                          AGE
-loki-dashboards-loki-chunks   5m
-loki-dashboards-loki-logs     5m
-loki-dashboards-loki-operational 5m
-```
-
-Each dashboard will have labels indicating its source:
+**Reference Mode Dashboard:**
 ```yaml
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
@@ -294,12 +393,100 @@ spec:
   configMapRef:
     name: loki-dashboards
     key: loki-chunks.json
-  resyncPeriod: "10m"  # Configurable via grafana.dashboard.resyncPeriod
-  allowCrossNamespaceImport: true  # Configurable via grafana.dashboard.allowCrossNamespaceImport
+  resyncPeriod: "10m"
+  allowCrossNamespaceImport: true
   instanceSelector:
     matchLabels:
       dashboards: grafana
 ```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### 1. **RBAC Permissions**
+```bash
+# Check if service account exists and has permissions
+kubectl get serviceaccount grafana-dashboard-converter
+kubectl auth can-i get configmaps --as=system:serviceaccount:default:grafana-dashboard-converter
+
+# Check cluster role for all-namespace watching
+kubectl get clusterrole grafana-dashboard-converter
+```
+
+**Solution:** Ensure RBAC is properly configured:
+```bash
+# For namespace-scoped
+kubectl apply -f helm/grafana-dashboard-converter/templates/role.yaml
+
+# For cluster-scoped
+kubectl apply -f helm/grafana-dashboard-converter/templates/clusterrole.yaml
+```
+
+#### 2. **ConfigMap Not Found**
+```bash
+# Check ConfigMap exists and has correct label
+kubectl get configmap my-dashboard -o yaml
+
+# Verify label is present
+kubectl label configmap my-dashboard grafana_dashboard=1
+```
+
+#### 3. **GrafanaDashboard Creation Fails**
+```bash
+# Check grafana-operator is running
+kubectl get deployment grafana-operator
+
+# Check CRD exists
+kubectl get crd grafanadashboards.grafana.integreatly.org
+
+# Check converter logs for specific errors
+kubectl logs -l app.kubernetes.io/name=grafana-dashboard-converter
+```
+
+#### 4. **Health Check Failures**
+```bash
+# Test health endpoints directly
+kubectl port-forward deployment/grafana-dashboard-converter 8080:8080
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+
+# Check resource limits
+kubectl describe pod -l app.kubernetes.io/name=grafana-dashboard-converter
+```
+
+#### 5. **Mode Switching Issues**
+```bash
+# Manual cleanup if needed
+kubectl delete grafanadashboard old-dashboard-name
+kubectl annotate configmap my-dashboard grafana-dashboard-converter/converted-at-
+```
+
+### Debug Commands
+
+```bash
+# Comprehensive status check
+kubectl get pods,svc,configmap,grafanadashboard -l grafana_dashboard=1
+
+# Check events for failures
+kubectl get events --sort-by=.metadata.creationTimestamp
+
+# Validate dashboard JSON
+python3 -c "import json; json.load(open('dashboard.json'))"
+
+# Test Kubernetes API access
+kubectl auth can-i create grafanadashboards --as=system:serviceaccount:default:grafana-dashboard-converter
+```
+
+### Getting Help
+
+1. Check the [grafana-operator documentation](https://github.com/grafana-operator/grafana-operator)
+2. Review the [troubleshooting guide](https://github.com/grafana-operator/grafana-operator/blob/master/docs/troubleshooting.md)
+3. Open an issue with:
+   - Converter version (`kubectl exec deployment/grafana-dashboard-converter -- python main.py --version`)
+   - Kubernetes version (`kubectl version`)
+   - grafana-operator version
+   - Relevant logs from converter and operator
 
 ## Project Structure
 
@@ -393,36 +580,144 @@ spec:
 - `GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE`: Allow cross-namespace import for dashboards (default: "true")
 - `GRAFANA_DASHBOARD_RESYNC_PERIOD`: Resync period for dashboards (default: "10m")
 
-## Development
+## 🛠️ Development
 
-### Local Development
+### Prerequisites
+
+- Python 3.8+
+- Docker (for containerized development)
+- Kubernetes cluster with kubectl configured
+- Helm 3.x
+
+### Local Development Setup
 
 ```bash
+# Clone the repository
+git clone https://github.com/kenchrcum/grafana-dashboard-converter.git
+cd grafana-dashboard-converter
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
 
-# Run locally (requires kubeconfig)
+# Run tests
+python -m pytest  # If tests exist
+
+# Run locally with your kubeconfig
 python main.py
 
-# Or run with custom kubeconfig
-KUBECONFIG=~/.kube/config python main.py
-
-# Run with environment variables
-NAMESPACE=my-namespace python main.py
+# Or run with custom configuration
+NAMESPACE=monitoring GRAFANA_CONVERSION_MODE=reference python main.py
 ```
 
-### Building for Production
+### Development with Docker
 
 ```bash
-# Build Docker image for Docker Hub
-docker build -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
+# Build development image
+docker build -t grafana-dashboard-converter:dev .
 
-# Or build with specific Python version
-docker build --build-arg PYTHON_VERSION=3.11 -t kenchrcum/grafana-dashboard-converter:v1.0.0 .
-
-# Push to Docker Hub
-docker push kenchrcum/grafana-dashboard-converter:v1.0.0
+# Run with volume mount for live reload
+docker run -it --rm \
+  -v $(pwd):/app \
+  -e KUBECONFIG=/app/kubeconfig \
+  grafana-dashboard-converter:dev
 ```
+
+### Testing
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=main --cov-report=html
+
+# Test specific functionality
+pytest tests/test_conversion.py -v
+```
+
+### Code Quality
+
+```bash
+# Install development tools
+pip install black flake8 mypy
+
+# Format code
+black main.py
+
+# Lint code
+flake8 main.py
+
+# Type checking
+mypy main.py
+```
+
+## 📚 API Reference
+
+### Health Check Endpoints
+
+The application exposes health check endpoints for Kubernetes probes:
+
+#### `GET /health`
+Returns the overall health status of the application.
+
+**Response:**
+```json
+{
+  "status": "OK"
+}
+```
+
+**Status Codes:**
+- `200`: Healthy
+- `503`: Unhealthy
+
+#### `GET /ready`
+Returns the readiness status of the application.
+
+**Response:**
+```json
+{
+  "status": "Ready"
+}
+```
+
+**Status Codes:**
+- `200`: Ready to accept traffic
+- `503`: Not ready
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `NAMESPACE` | Kubernetes namespace to watch | Release namespace | No |
+| `WATCH_ALL_NAMESPACES` | Watch all namespaces | `false` | No |
+| `GRAFANA_INSTANCE_SELECTOR` | JSON selector for Grafana instances | `{"matchLabels":{"dashboards":"grafana"}}` | No |
+| `GRAFANA_CONVERTED_ANNOTATION` | Annotation key for processed dashboards | `grafana-dashboard-converter/converted-at` | No |
+| `GRAFANA_CONVERSION_MODE` | Conversion mode (`full` or `reference`) | `full` | No |
+| `GRAFANA_DASHBOARD_ALLOW_CROSS_NAMESPACE` | Allow cross-namespace imports | `true` | No |
+| `GRAFANA_DASHBOARD_RESYNC_PERIOD` | Resync period for reference mode | `10m` | No |
+
+### Labels and Annotations
+
+#### ConfigMap Labels
+- `grafana_dashboard: "1"` - Marks ConfigMap for conversion
+- `grafana_folder: "FolderName"` - Sets dashboard folder in Grafana
+
+#### GrafanaDashboard Labels
+- `grafana-dashboard: converted` - Indicates successful conversion
+- `grafana-dashboard-conversion-mode: full|reference` - Conversion mode used
+- `grafana-dashboard-source-configmap: name` - Source ConfigMap name
+- `grafana-dashboard-source-key: key` - Source ConfigMap key
+
+#### Annotations
+- `grafana-dashboard-converter/converted-at` - ISO timestamp of conversion
 
 ## CI/CD
 
