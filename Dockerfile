@@ -1,6 +1,9 @@
 # Build stage
 FROM alpine:3.22.1 AS builder
 
+# Upgrade system packages
+RUN apk upgrade
+
 # Install Python and build dependencies
 RUN apk add --no-cache \
     python3 \
@@ -25,6 +28,9 @@ RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 # Production stage
 FROM alpine:3.22.1
 
+# Upgrade system packages
+RUN apk upgrade
+
 # Install Python runtime only
 RUN apk add --no-cache \
     python3 \
@@ -33,6 +39,9 @@ RUN apk add --no-cache \
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
+
+# Upgrade pip
+RUN /opt/venv/bin/pip install -U pip
 
 # Make sure we use venv
 ENV PATH="/opt/venv/bin:$PATH"
