@@ -2,6 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-0.3.6-blue.svg)
 [![License](https://img.shields.io/badge/license-Unlicense-lightgrey.svg)](LICENSE)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/grafana-dashboard-converter)](https://artifacthub.io/packages/search?repo=grafana-dashboard-converter)
 
 A Kubernetes application that automatically converts legacy ConfigMap-based Grafana dashboards to GrafanaDashboard Custom Resources compatible with the [grafana-operator](https://github.com/grafana-operator/grafana-operator).
 
