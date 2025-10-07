@@ -1,6 +1,6 @@
 # Grafana Dashboard Converter
 
-![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.6-blue.svg)
 [![License](https://img.shields.io/badge/license-Unlicense-lightgrey.svg)](LICENSE)
 
 A Kubernetes application that automatically converts legacy ConfigMap-based Grafana dashboards to GrafanaDashboard Custom Resources compatible with the [grafana-operator](https://github.com/grafana-operator/grafana-operator).
@@ -529,7 +529,7 @@ kubectl auth can-i create grafanadashboards --as=system:serviceaccount:default:g
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `0.3.5` |
+| `image.tag` | Docker image tag | `0.3.6` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
