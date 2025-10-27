@@ -296,14 +296,14 @@ This roadmap is a living document and will evolve based on:
 
 ## 📝 Change Log
 
-### Version 0.3.6 (Current)
+### Version 0.3.7 (Current)
 - Basic conversion functionality
 - Helm chart deployment
 - Health check endpoints
 - Two conversion modes (full/reference)
+- Input validation and error handling improvements
 
 ### Version 0.4.0 (Next Release)
-- Input validation and error handling improvements
 - Code modularization and testing framework
 - Enhanced monitoring and metrics
 

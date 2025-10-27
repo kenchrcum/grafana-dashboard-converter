@@ -1,6 +1,6 @@
 # Grafana Dashboard Converter
 
-![Version](https://img.shields.io/badge/version-0.3.6-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.7-blue.svg)
 [![License](https://img.shields.io/badge/license-Unlicense-lightgrey.svg)](LICENSE)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/grafana-dashboard-converter)](https://artifacthub.io/packages/search?repo=grafana-dashboard-converter)
 
@@ -530,7 +530,7 @@ kubectl auth can-i create grafanadashboards --as=system:serviceaccount:default:g
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Docker image repository | `kenchrcum/grafana-dashboard-converter` |
-| `image.tag` | Docker image tag | `0.3.6` |
+| `image.tag` | Docker image tag | `0.3.7` |
 | `image.pullPolicy` | Image pull policy | `Always` |
 | `replicaCount` | Number of replicas | `1` |
 | `watchNamespace` | Namespace to watch for ConfigMaps (defaults to release namespace) | `""` |
