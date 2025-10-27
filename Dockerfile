@@ -50,7 +50,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
 # Copy application code
-COPY main.py .
+COPY main.py validation.py .
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app

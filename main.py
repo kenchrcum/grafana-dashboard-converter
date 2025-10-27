@@ -14,6 +14,14 @@ from kubernetes.client.rest import ApiException
 from flask import Flask, jsonify
 import requests
 
+# Import validation module
+from validation import (
+    validate_configmap_complete,
+    validate_and_sanitize_dashboard_entry,
+    ValidationError,
+    SanitizationError
+)
+
 # Constants
 GRAFANA_DASHBOARD_LABEL = "grafana_dashboard=1"
 NAMESPACE_ENV = "NAMESPACE"
@@ -175,6 +183,16 @@ def check_existing_grafana_dashboard(name, namespace, clientset, conversion_mode
 def create_grafana_dashboard_crd(configmap, clientset):
     """Create GrafanaDashboard CRDs from ConfigMap. Handles multiple dashboards per ConfigMap."""
 
+    # Validate ConfigMap before processing
+    try:
+        is_valid, error = validate_configmap_complete(configmap)
+        if not is_valid:
+            logger.error(f"ConfigMap validation failed for {configmap.metadata.namespace}/{configmap.metadata.name}: {error}")
+            return
+    except Exception as e:
+        logger.error(f"Error validating ConfigMap {configmap.metadata.namespace}/{configmap.metadata.name}: {e}")
+        return
+
     # Check if ConfigMap has data
     if not configmap.data:
         logger.warning(f"ConfigMap {configmap.metadata.namespace}/{configmap.metadata.name} has no data, skipping")
@@ -195,9 +213,25 @@ def create_grafana_dashboard_crd(configmap, clientset):
     # Process each dashboard file
     for dashboard_key, dashboard_json in dashboard_files:
         try:
+            # Validate and sanitize dashboard entry
+            is_valid, error, sanitized_json = validate_and_sanitize_dashboard_entry(dashboard_key, dashboard_json)
+            if not is_valid:
+                logger.error(f"Dashboard validation failed for {configmap.metadata.name}/{dashboard_key}: {error}")
+                continue
+            
+            # Use sanitized JSON
+            dashboard_json = sanitized_json
+            
             # Parse the dashboard JSON to extract title
             dashboard_data = json.loads(dashboard_json)
-            title = dashboard_data.get("dashboard", {}).get("title", f"{configmap.metadata.name}-{dashboard_key}")
+            
+            # Handle both wrapped {"dashboard": {...}} and direct {...} formats
+            if "dashboard" in dashboard_data:
+                dashboard_obj = dashboard_data["dashboard"]
+            else:
+                dashboard_obj = dashboard_data
+            
+            title = dashboard_obj.get("title", f"{configmap.metadata.name}-{dashboard_key}")
 
             # Get conversion mode
             conversion_mode = get_conversion_mode()
@@ -320,6 +354,10 @@ def create_grafana_dashboard_crd(configmap, clientset):
                 else:
                     logger.error(f"Failed to create GrafanaDashboard {grafana_dashboard_name}: {e}")
 
+        except ValidationError as e:
+            logger.error(f"Validation error for dashboard from ConfigMap {configmap.metadata.name}, key {dashboard_key}: {e}")
+        except SanitizationError as e:
+            logger.error(f"Sanitization error for dashboard from ConfigMap {configmap.metadata.name}, key {dashboard_key}: {e}")
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse dashboard JSON from ConfigMap {configmap.metadata.name}, key {dashboard_key}: {e}")
         except Exception as e:
