@@ -1,5 +1,5 @@
 # Build stage
-FROM alpine:3.22.1 AS builder
+FROM alpine:3.22.2 AS builder
 
 # Upgrade system packages
 RUN apk upgrade
@@ -26,7 +26,7 @@ COPY requirements.txt .
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM alpine:3.22.1
+FROM alpine:3.22.2
 
 # Upgrade system packages
 RUN apk upgrade
