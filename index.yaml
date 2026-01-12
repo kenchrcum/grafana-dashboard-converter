@@ -2,6 +2,28 @@ apiVersion: v1
 entries:
   grafana-dashboard-converter:
   - apiVersion: v2
+    appVersion: 0.3.8
+    created: "2026-01-12T12:57:53.025957425Z"
+    description: A Helm chart for deploying Grafana Dashboard Converter
+    digest: 692700b11a428f569395fa1d622b62612768fa709325c0f29425e2d36502a12d
+    home: https://github.com/kenchrcum/grafana-dashboard-converter
+    keywords:
+    - grafana
+    - dashboard
+    - converter
+    - kubernetes
+    - operator
+    maintainers:
+    - email: kenchrcum@googlemail.com
+      name: kenchrcum
+    name: grafana-dashboard-converter
+    sources:
+    - https://github.com/kenchrcum/grafana-dashboard-converter
+    type: application
+    urls:
+    - https://github.com/kenchrcum/grafana-dashboard-converter/releases/download/grafana-dashboard-converter-0.3.8/grafana-dashboard-converter-0.3.8.tgz
+    version: 0.3.8
+  - apiVersion: v2
     appVersion: 0.3.7
     created: "2025-10-27T08:43:43.793927726Z"
     description: A Helm chart for deploying Grafana Dashboard Converter
@@ -265,4 +287,4 @@ entries:
     urls:
     - https://github.com/kenchrcum/grafana-dashboard-converter/releases/download/grafana-dashboard-converter-0.1.5/grafana-dashboard-converter-0.1.5.tgz
     version: 0.1.5
-generated: "2025-10-27T08:43:43.793971497Z"
+generated: "2026-01-12T12:57:53.026057098Z"
