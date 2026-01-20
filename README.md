@@ -1,5 +1,6 @@
 # Grafana Dashboard Converter
 
+[![AI Assisted](https://img.shields.io/badge/AI-Assisted_Development-blueviolet)](AI_DISCLAIMER.md)
 ![Version](https://img.shields.io/badge/version-0.3.8-blue.svg)
 [![License](https://img.shields.io/badge/license-Unlicense-lightgrey.svg)](LICENSE)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/grafana-dashboard-converter)](https://artifacthub.io/packages/search?repo=grafana-dashboard-converter)
