@@ -296,7 +296,7 @@ This roadmap is a living document and will evolve based on:
 
 ## 📝 Change Log
 
-### Version 0.3.9 (Current)
+### Version 0.3.10 (Current)
 - Basic conversion functionality
 - Helm chart deployment
 - Health check endpoints
